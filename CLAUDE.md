@@ -68,6 +68,7 @@ SPEC.md  CLAUDE.md  PROGRESS.md
 - Test RLS with a rollback-only `do $$ … raise exception 'RESULT …' $$` block: fake `auth.users` rows, `set local role authenticated`, `request.jwt.claims`.
 - Sign-in is email + password (`src/lib/auth.ts` signIn/signUp). "Confirm email" must stay off; sign-ups off after the owner exists. Built-in mailer can't edit templates (needs custom SMTP) and sends 2 emails/hour, so never build email-based flows.
 - Auth dashboard settings can't be set via MCP; ask Ali. Deleting auth users via MCP needs his explicit OK at the prompt.
+- FX: edge function `fx-daily` (supabase/functions, deploy via MCP, verify_jwt on) is called every 6 h by pg_cron job `fx-daily`; the anon JWT it sends is in Vault as `fx_daily_anon_key` (never commit it). Rate 1 on an entry = "no rate yet" (`isRealRate`); `repairPlaceholderRates` fixes those locally.
 
 ## Commands
 ```

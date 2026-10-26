@@ -1,2 +1,3 @@
 Phase 0 — Skeleton: done (2026-10-26) · live at https://mohamadrachid.github.io/masroof/
-Phase 1 — Ledger: deployed (2026-10-26) · use it for a day on the phone before Phase 2
+Phase 1 — Ledger: deployed (2026-10-26)
+Phase 2 — FX display: deployed (2026-10-26) · daily rate via fx-daily + pg_cron
