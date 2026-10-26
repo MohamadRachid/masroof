@@ -6,6 +6,7 @@ import { Icon } from './components/Icon'
 import { Sheet } from './components/Sheet'
 import { Shell } from './components/Shell'
 import { Splash } from './components/Splash'
+import { UpdatePrompt } from './components/UpdatePrompt'
 import { I18nProvider, useI18n } from './i18n'
 import { useSession } from './lib/auth'
 import { goBack, useRoute, type Route } from './lib/router'
@@ -60,6 +61,7 @@ export default function App() {
   return (
     <I18nProvider>
       <Gate />
+      <UpdatePrompt />
     </I18nProvider>
   )
 }
