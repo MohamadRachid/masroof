@@ -224,7 +224,7 @@ Past plans: list; tap → read-only planned vs. actual.
 - `rate_mode = manual`: `settings.manual_rate`, shown as "manual" in the footer, stays until changed.
 - Every new entry stores the effective rate at creation. Editing an entry does not change its stored rate unless the user explicitly taps "update rate" on the edit sheet.
 - No transfer/exchange feature. USD and GHS never move between each other in the app.
-- Phase 1 note (2026-10-26): until FX exists, entries are stored with `rate_usd_ghs = 1`, which means "no rate yet" (a real USD/GHS rate is never 1). Phase 2 runs a one-time repair that replaces 1 with the rate of each entry's date. That repair is not a user edit, so §9's "update rate" rule doesn't apply to it.
+- Phase 1 note (2026-10-26): until FX exists, entries are stored with `rate_usd_ghs = 1`, which means "no rate yet" (a real USD/GHS rate is never 1). Phase 2 runs a one-time repair that replaces 1 with the rate of each entry's date. That repair is not a user edit, so §9's "update rate" rule doesn't apply to it. Phase 2 (2026-10-26): the same repair keeps running, on each device right after a successful sync, for any live entry saved while no rate existed (offline before the first daily rate, or manual mode never set). The footer and Settings call auto mode "daily".
 
 ---
 

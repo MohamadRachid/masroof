@@ -6,7 +6,7 @@ import { useI18n, type Lang } from '../i18n'
 import { signOut } from '../lib/auth'
 import { useAccounts, useData, useLatestRate, useSettings } from '../lib/data'
 import type { Account } from '../lib/db'
-import { formatRate, parseRate } from '../lib/fx'
+import { formatRate, parseRate, rateFormula, rateModeChanges } from '../lib/fx'
 import { formatMoney, normalizeDigits } from '../lib/money'
 import { accountName } from '../lib/names'
 import { updateSettings } from '../lib/store'
@@ -70,7 +70,7 @@ function RateSection() {
               role="radio"
               aria-checked={settings.rate_mode === m}
               className={styles.segment}
-              onClick={() => m !== settings.rate_mode && void change({ rate_mode: m })}
+              onClick={() => m !== settings.rate_mode && void change(rateModeChanges(m, settings, value))}
             >
               {t(m === 'auto' ? 'rate.auto' : 'rate.manual')}
             </button>
@@ -100,7 +100,7 @@ function RateSection() {
         <div className={styles.row}>
           <span className={styles.rowHint}>
             {latest
-              ? t('rate.dailyInfo', { rate: formatRate(latest.usd_ghs), date: latest.date === today ? t('fx.today') : formatShortDate(latest.date, lang) })
+              ? t('rate.dailyInfo', { formula: rateFormula(t('fx.line', { rate: formatRate(latest.usd_ghs) })), date: latest.date === today ? t('fx.today') : formatShortDate(latest.date, lang) })
               : t('rate.dailyNone')}
           </span>
         </div>

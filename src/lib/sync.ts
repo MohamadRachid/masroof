@@ -85,8 +85,9 @@ export async function push(db: MasroofDB, remote: Remote): Promise<PushResult> {
 }
 
 /** Push, then pull even if the push failed, so one device's trouble never stops the other's changes arriving. */
-export async function syncOnce(db: MasroofDB, remote: Remote): Promise<{ ok: boolean; rejected: string[] }> {
+export async function syncOnce(db: MasroofDB, remote: Remote): Promise<{ ok: boolean; pulled: boolean; rejected: string[] }> {
   let ok = true
+  let pulled = false
   let rejected: string[] = []
   try {
     rejected = (await push(db, remote)).rejected
@@ -96,11 +97,12 @@ export async function syncOnce(db: MasroofDB, remote: Remote): Promise<{ ok: boo
   }
   try {
     await pull(db, remote)
+    pulled = true
   } catch (err) {
     ok = false
     console.warn('pull failed', err)
   }
-  return { ok, rejected }
+  return { ok, pulled, rejected }
 }
 
 // Re-read a few minutes before the cursor: a row whose transaction started earlier but

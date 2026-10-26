@@ -5,6 +5,9 @@ import { createClient } from 'jsr:@supabase/supabase-js@2'
 
 const SOURCE = 'open.er-api.com'
 const API = 'https://open.er-api.com/v6/latest/USD'
+// A wrong rate would be frozen into every entry made that day; refuse anything implausible.
+const MIN_RATE = 1
+const MAX_RATE = 1000
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
@@ -27,7 +30,7 @@ Deno.serve(async () => {
     rate = Number(body?.rates?.GHS)
     const updated = Number(body?.time_last_update_unix)
     date = Number.isFinite(updated) ? new Date(updated * 1000).toISOString().slice(0, 10) : today
-    if (body?.result !== 'success' || !Number.isFinite(rate) || rate <= 0) {
+    if (body?.result !== 'success' || !Number.isFinite(rate) || rate <= MIN_RATE || rate >= MAX_RATE) {
       return json({ ok: false, error: 'unexpected payload from rate source' }, 502)
     }
   } catch (err) {

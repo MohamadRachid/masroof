@@ -68,10 +68,6 @@ export function startSync(db: MasroofDB, remote: Remote = supabaseRemote): () =>
   let again = false
   let debounce: number | undefined
 
-  // Phase 1 entries saved before any rate existed get their day's rate. Local data is
-  // enough, so this never waits for the network.
-  const repair = () => repairPlaceholderRates(db).catch((err: unknown) => console.warn('rate repair failed', err))
-
   const run = async () => {
     if (running) {
       again = true
@@ -79,14 +75,14 @@ export function startSync(db: MasroofDB, remote: Remote = supabaseRemote): () =>
     }
     running = true
     try {
-      await repair()
       if (!navigator.onLine) {
         setStatus({ failed: true })
         return
       }
-      const { ok } = await syncOnce(db, remote)
+      const { ok, pulled } = await syncOnce(db, remote)
       setStatus({ failed: !ok })
-      await repair() // a pull may have brought the first rate
+      // Entries saved before any rate existed get their day's rate — only on fresh data.
+      if (pulled) await repairPlaceholderRates(db).catch((err: unknown) => console.warn('rate repair failed', err))
     } finally {
       running = false
       if (again) {

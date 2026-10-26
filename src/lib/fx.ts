@@ -57,3 +57,24 @@ const rateFormat = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, ma
 export function formatRate(rate: number): string {
   return rateFormat.format(rate)
 }
+
+/**
+ * Settings changes for a Daily/Manual tap. Switching to manual with no manual rate
+ * also saves the rate on screen; otherwise effectiveRate would quietly stay on daily.
+ */
+export function rateModeChanges(
+  mode: 'auto' | 'manual',
+  current: { manual_rate: number | null },
+  shownText: string,
+): { rate_mode: 'auto' | 'manual'; manual_rate?: number } {
+  if (mode === 'manual' && !current.manual_rate) {
+    const rate = parseRate(shownText)
+    if (rate !== null) return { rate_mode: 'manual', manual_rate: rate }
+  }
+  return { rate_mode: mode }
+}
+
+/** "1 USD = 11.622 GHS" kept left-to-right inside Arabic text (LRI … PDI). */
+export function rateFormula(line: string): string {
+  return `⁦${line}⁩`
+}

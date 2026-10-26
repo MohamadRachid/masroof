@@ -101,6 +101,18 @@ describe('repairPlaceholderRates (phase 1 entries saved with rate 1)', () => {
     expect((await db.outbox.toArray()).map((i) => i.key)).toEqual([old.id])
   })
 
+  it('leaves soft-deleted entries alone and finds nothing on a second run', async () => {
+    const db = freshDb()
+    await db.rates.put({ id: 'r', date: '2026-10-26', usd_ghs: 11.622, source: 'test', created_at: '', updated_at: '', deleted_at: null })
+    const gone = await addEntry(db, 'u1', { ...input, rate_usd_ghs: 1 })
+    await deleteEntry(db, gone)
+    await addEntry(db, 'u1', { ...input, rate_usd_ghs: 1 })
+
+    expect(await repairPlaceholderRates(db)).toBe(1)
+    expect(await repairPlaceholderRates(db)).toBe(0)
+    expect((await db.entries.get(gone.id))?.rate_usd_ghs).toBe(1)
+  })
+
   it('does nothing while no rate exists', async () => {
     const db = freshDb()
     await addEntry(db, 'u1', { ...input, rate_usd_ghs: 1 })

@@ -164,6 +164,18 @@ describe('pull', () => {
 })
 
 describe('robustness', () => {
+  it('reports pulled = false when the pull itself fails', async () => {
+    const db = freshDb()
+    const failing: Remote = {
+      upsert: async () => {},
+      pullSince: async () => {
+        throw new Error('offline')
+      },
+    }
+    const result = await syncOnce(db, failing)
+    expect(result).toMatchObject({ ok: false, pulled: false })
+  })
+
   it('a row the server permanently rejects is set aside; the other rows still sync', async () => {
     const db = freshDb()
     const server = fakeServer()
@@ -187,6 +199,7 @@ describe('robustness', () => {
     const result = await syncOnce(db, server.remote)
 
     expect(result.ok).toBe(false)
+    expect(result.pulled).toBe(true)
     expect(await db.entries.get('remote')).toBeTruthy()
     expect(await db.outbox.count()).toBe(1)
   })

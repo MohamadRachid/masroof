@@ -1,7 +1,7 @@
 import { useI18n } from '../i18n'
 import { formatShortDate } from '../i18n/format'
 import { useEffectiveRate } from '../lib/data'
-import { formatRate } from '../lib/fx'
+import { formatRate, rateFormula } from '../lib/fx'
 import { goTab } from '../lib/router'
 import { useToday } from '../lib/useToday'
 import styles from './RateLine.module.css'
@@ -17,7 +17,7 @@ export function RateLine() {
   if (eff.source === 'none') {
     text = t('fx.none')
   } else {
-    const parts = [t('fx.line', { rate: formatRate(eff.rate) })]
+    const parts = [rateFormula(t('fx.line', { rate: formatRate(eff.rate) }))]
     if (eff.source === 'manual') parts.push(t('fx.manual'))
     else parts.push(t('fx.auto'), eff.date === today ? t('fx.today') : formatShortDate(eff.date, lang))
     text = parts.join(' · ')

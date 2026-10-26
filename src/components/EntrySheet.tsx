@@ -5,7 +5,7 @@ import { useAccounts, useCategories, useData, useEntries, useLatestRate, useSett
 import { localDateISO, relativeDay } from '../lib/dates'
 import type { Account, Category, Entry } from '../lib/db'
 import { lastUsed, quickTiles, type QuickTile } from '../lib/entries'
-import { effectiveRate, formatRate, isRealRate } from '../lib/fx'
+import { effectiveRate, formatRate, isRealRate, rateFormula } from '../lib/fx'
 import { formatMoney, normalizeDigits, parseAmount } from '../lib/money'
 import { accountName, categoryName, iconFor } from '../lib/names'
 import { addEntry, deleteEntry, restoreEntry, updateEntry, type EntryType } from '../lib/store'
@@ -302,7 +302,7 @@ function EntryForm({
             {rateOverride !== null
               ? t('entry.rateWillUpdate', { rate: formatRate(rateOverride) })
               : isRealRate(entry.rate_usd_ghs)
-                ? t('entry.rateSaved', { rate: formatRate(entry.rate_usd_ghs) })
+                ? t('entry.rateSaved', { formula: rateFormula(t('fx.line', { rate: formatRate(entry.rate_usd_ghs) })) })
                 : t('entry.rateNone')}
           </span>
           {rateOverride === null && isRealRate(rate) && rate !== entry.rate_usd_ghs && (

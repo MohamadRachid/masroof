@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { convert, effectiveRate, formatRate, isRealRate, otherCurrency, parseRate, rateForDate } from './fx'
+import { convert, effectiveRate, formatRate, isRealRate, otherCurrency, parseRate, rateForDate, rateModeChanges } from './fx'
 
 describe('effectiveRate (SPEC §5)', () => {
   const latest = { usd_ghs: 15.42, date: '2026-10-26' }
@@ -77,5 +77,20 @@ describe('parseRate / formatRate', () => {
     expect(formatRate(11.622)).toBe('11.622')
     expect(formatRate(16)).toBe('16.00')
     expect(formatRate(15.4237)).toBe('15.4237')
+  })
+})
+
+describe('rateModeChanges', () => {
+  it('switching to manual with no manual rate saves the shown rate too, so manual really is manual', () => {
+    expect(rateModeChanges('manual', { manual_rate: null }, '11.622')).toEqual({ rate_mode: 'manual', manual_rate: 11.622 })
+  })
+
+  it('keeps an existing manual rate, and switching back to daily only changes the mode', () => {
+    expect(rateModeChanges('manual', { manual_rate: 12.5 }, '11.622')).toEqual({ rate_mode: 'manual' })
+    expect(rateModeChanges('auto', { manual_rate: 12.5 }, '12.5')).toEqual({ rate_mode: 'auto' })
+  })
+
+  it('with nothing valid to show, only the mode changes', () => {
+    expect(rateModeChanges('manual', { manual_rate: null }, '')).toEqual({ rate_mode: 'manual' })
   })
 })

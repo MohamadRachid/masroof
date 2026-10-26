@@ -114,13 +114,14 @@ export async function updateSettings(
 }
 
 /**
- * One-time repair (SPEC §9 note): entries saved before any rate existed carry
- * rate 1; give them the daily rate of their own date. Not a user edit.
+ * Repair (SPEC §9 note): entries saved while no rate existed carry rate 1; give them
+ * the daily rate of their own date. Not a user edit. Run it only right after a
+ * successful pull, so it never pushes a stale copy over a newer change from the other device.
  */
 export async function repairPlaceholderRates(db: MasroofDB): Promise<number> {
   const rates = (await db.rates.toArray()).filter((r) => !r.deleted_at)
   if (rates.length === 0) return 0
-  const stale = await db.entries.filter((e) => e.rate_usd_ghs === 1).toArray()
+  const stale = await db.entries.filter((e) => e.rate_usd_ghs === 1 && !e.deleted_at).toArray()
   const now = nowISO()
   const fixed: Entry[] = []
   for (const e of stale) {
