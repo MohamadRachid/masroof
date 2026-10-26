@@ -5,12 +5,13 @@ import { Screen } from '../components/Screen'
 import { useI18n } from '../i18n'
 import { formatLongDate } from '../i18n/format'
 import { useAccounts, useCategories, useEntries } from '../lib/data'
-import { localDateISO } from '../lib/dates'
+import { parseLocalDate } from '../lib/dates'
 import type { Entry } from '../lib/db'
 import { groupByDay } from '../lib/entries'
 import { balance } from '../lib/money'
 import { accountName } from '../lib/names'
 import { goTab } from '../lib/router'
+import { useToday } from '../lib/useToday'
 import styles from './Home.module.css'
 
 export default function Home({ onOpenEntry }: { onOpenEntry: (entry: Entry) => void }) {
@@ -18,9 +19,9 @@ export default function Home({ onOpenEntry }: { onOpenEntry: (entry: Entry) => v
   const accounts = useAccounts()
   const categories = useCategories()
   const entries = useEntries()
+  const today = useToday()
   if (!accounts || !categories || !entries) return null
 
-  const today = localDateISO()
   const currencyOf = (id: string) => accounts.find((a) => a.id === id)?.currency ?? ''
   const todayGroup = groupByDay(
     entries.filter((e) => e.date === today),
@@ -28,7 +29,7 @@ export default function Home({ onOpenEntry }: { onOpenEntry: (entry: Entry) => v
   )[0]
 
   return (
-    <Screen title={t('home.title')} subtitle={formatLongDate(new Date(), lang)}>
+    <Screen title={t('home.title')} subtitle={formatLongDate(parseLocalDate(today), lang)}>
       <section className={styles.balances} aria-label={t('home.balances')}>
         {accounts.map((a) => (
           <div key={a.id} className={styles.balance}>

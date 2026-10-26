@@ -31,10 +31,22 @@ function toServer(row: Row): Row {
   return rest
 }
 
+/**
+ * The server refused the data itself (bad value, constraint, permission, schema):
+ * retrying can never succeed. Anything else (network, timeout, 5xx) is worth retrying.
+ */
+function isPermanent(err: unknown): boolean {
+  const code = err && typeof err === 'object' && 'code' in err ? String(err.code ?? '') : ''
+  return /^(22|23|42)/.test(code) || code.startsWith('PGRST')
+}
+
+export type PushResult = { sent: number; rejected: string[] }
+
 /** Send the outbox, oldest first, one upsert per table with only the latest version of each row. */
-export async function push(db: MasroofDB, remote: Remote): Promise<number> {
+export async function push(db: MasroofDB, remote: Remote): Promise<PushResult> {
+  const result: PushResult = { sent: 0, rejected: [] }
   const items = await db.outbox.orderBy('seq').toArray()
-  if (items.length === 0) return 0
+  if (items.length === 0) return result
 
   const byTable = new Map<SyncedTable, { latest: Map<string, OutboxItem>; seqs: number[] }>()
   for (const item of items) {
@@ -44,24 +56,68 @@ export async function push(db: MasroofDB, remote: Remote): Promise<number> {
     byTable.set(item.table, group)
   }
 
-  let sent = 0
   for (const [table, { latest, seqs }] of byTable) {
     if (!READ_ONLY_TABLES.has(table)) {
-      const rows = [...latest.values()].map((item) => toServer(item.row))
-      await remote.upsert(table, rows)
-      sent += rows.length
+      const rows = [...latest.values()]
+      try {
+        await remote.upsert(table, rows.map((item) => toServer(item.row)))
+        result.sent += rows.length
+      } catch (err) {
+        if (!isPermanent(err)) throw err
+        // One bad row must not block the rest forever: send them one by one and set aside
+        // the ones the server rejects (the next pull restores the server's version).
+        for (const item of rows) {
+          try {
+            await remote.upsert(table, [toServer(item.row)])
+            result.sent += 1
+          } catch (rowErr) {
+            if (!isPermanent(rowErr)) throw rowErr
+            console.warn(`server rejected ${table} ${item.key}`, rowErr)
+            result.rejected.push(item.key)
+          }
+        }
+      }
     }
     // Only the items read above; anything queued meanwhile stays for the next push.
     await db.outbox.bulkDelete(seqs)
   }
-  return sent
+  return result
+}
+
+/** Push, then pull even if the push failed, so one device's trouble never stops the other's changes arriving. */
+export async function syncOnce(db: MasroofDB, remote: Remote): Promise<{ ok: boolean; rejected: string[] }> {
+  let ok = true
+  let rejected: string[] = []
+  try {
+    rejected = (await push(db, remote)).rejected
+  } catch (err) {
+    ok = false
+    console.warn('push failed', err)
+  }
+  try {
+    await pull(db, remote)
+  } catch (err) {
+    ok = false
+    console.warn('pull failed', err)
+  }
+  return { ok, rejected }
+}
+
+// Re-read a few minutes before the cursor: a row whose transaction started earlier but
+// committed later (or shifted between pages) would otherwise sit below the cursor forever.
+// Re-applying rows we already have is harmless.
+const OVERLAP_MS = 5 * 60 * 1000
+function withOverlap(cursor: string | null): string | null {
+  if (!cursor) return null
+  const t = Date.parse(cursor)
+  return Number.isNaN(t) ? cursor : new Date(t - OVERLAP_MS).toISOString()
 }
 
 /** Fetch rows changed since each table's cursor. Rows with unsent local changes keep the local version. */
 export async function pull(db: MasroofDB, remote: Remote, tables: readonly SyncedTable[] = SYNCED_TABLES): Promise<void> {
   for (const table of tables) {
     const since = (await db.meta.get(cursorKey(table)))?.value ?? null
-    const rows = await remote.pullSince(table, since)
+    const rows = await remote.pullSince(table, withOverlap(since))
     if (rows.length === 0) continue
 
     await db.transaction('rw', db.tableOf(table), db.outbox, db.meta, async () => {

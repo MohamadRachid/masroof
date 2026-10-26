@@ -1,1 +1,2 @@
-Phase 0 — Skeleton: done (2026-10-26) · live at https://mohamadrachid.github.io/masroof/ · owner signed in, 13 categories seeded
+Phase 0 — Skeleton: done (2026-10-26) · live at https://mohamadrachid.github.io/masroof/
+Phase 1 — Ledger: deployed (2026-10-26) · use it for a day on the phone before Phase 2

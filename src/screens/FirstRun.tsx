@@ -4,20 +4,13 @@ import { LangToggle } from '../components/LangToggle'
 import { useI18n, type Lang } from '../i18n'
 import { useData, useSettings } from '../lib/data'
 import { nowISO } from '../lib/dates'
-import { normalizeDigits, parseAmount } from '../lib/money'
+import { normalizeDigits, parseSignedAmount } from '../lib/money'
 import { createAccounts, updateSettings } from '../lib/store'
 import { queueRows } from '../lib/sync'
 import styles from './FirstRun.module.css'
 
 type Balances = { bank: string; cash: string; usd: string }
 const STEPS = 3
-
-/** Empty or 0 means zero; anything else must parse. */
-function opening(text: string): number | null {
-  const s = text.trim()
-  if (s === '' || /^0+([.,٫]0*)?$/.test(s)) return 0
-  return parseAmount(s)
-}
 
 /** SPEC §6 First run: language → opening balances → usual payday → done. Shown once. */
 export default function FirstRun() {
@@ -30,7 +23,7 @@ export default function FirstRun() {
   const [busy, setBusy] = useState(false)
 
   const day = payday ?? settings?.usual_payday ?? 25
-  const parsed = { bank: opening(balances.bank), cash: opening(balances.cash), usd: opening(balances.usd) }
+  const parsed = { bank: parseSignedAmount(balances.bank), cash: parseSignedAmount(balances.cash), usd: parseSignedAmount(balances.usd) }
   const balancesOk = parsed.bank !== null && parsed.cash !== null && parsed.usd !== null
 
   async function finish() {

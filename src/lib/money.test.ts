@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { balance, formatMoney, parseAmount, round2, toCents } from './money'
+import { balance, formatMoney, parseAmount, parseSignedAmount, round2, toCents } from './money'
 
 describe('toCents / round2', () => {
   it('rounds half away from zero at 2 decimals, without float drift', () => {
@@ -79,5 +79,24 @@ describe('formatMoney', () => {
 
   it('uses a true minus sign for negatives', () => {
     expect(formatMoney(-20)).toBe('−20.00')
+  })
+})
+
+describe('parseSignedAmount (opening balances)', () => {
+  it('accepts empty as zero, negatives (overdrawn) and Arabic digits', () => {
+    expect(parseSignedAmount('')).toBe(0)
+    expect(parseSignedAmount('0')).toBe(0)
+    expect(parseSignedAmount('-250.5')).toBe(-250.5)
+    expect(parseSignedAmount('−40')).toBe(-40)
+    expect(parseSignedAmount('١٢٠')).toBe(120)
+    expect(parseSignedAmount('1,250.75')).toBe(1250.75)
+  })
+
+  it('rejects junk, NaN-producing and out-of-range input', () => {
+    expect(parseSignedAmount('abc')).toBeNull()
+    expect(parseSignedAmount('1'.repeat(23))).toBeNull()
+    expect(parseSignedAmount('10000000000000')).toBeNull()
+    expect(parseSignedAmount('-10000000000000')).toBeNull()
+    expect(parseSignedAmount('--5')).toBeNull()
   })
 })

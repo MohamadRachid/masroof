@@ -7,10 +7,11 @@ import { Screen } from '../components/Screen'
 import { useI18n } from '../i18n'
 import { formatLongDate } from '../i18n/format'
 import { useAccounts, useCategories, useEntries } from '../lib/data'
-import { localDateISO, parseLocalDate, relativeDay } from '../lib/dates'
+import { parseLocalDate, relativeDay } from '../lib/dates'
 import type { Entry } from '../lib/db'
 import { groupByDay, matchesSearch } from '../lib/entries'
 import { accountName } from '../lib/names'
+import { useToday } from '../lib/useToday'
 import styles from './History.module.css'
 
 const PAGE = 150
@@ -23,6 +24,7 @@ export default function History({ onOpenEntry }: { onOpenEntry: (entry: Entry) =
   const [query, setQuery] = useState('')
   const [accountId, setAccountId] = useState<string | null>(null)
   const [limit, setLimit] = useState(PAGE)
+  const today = useToday()
 
   if (!accounts || !categories || !entries) return null
   if (entries.length === 0) {
@@ -41,7 +43,6 @@ export default function History({ onOpenEntry }: { onOpenEntry: (entry: Entry) =
     return matchesSearch(e, c ? [c.name_en, c.name_ar] : [], query)
   })
   const groups = groupByDay(filtered, currencyOf)
-  const today = localDateISO()
 
   // Render day groups until the entry budget is spent; "Show more" raises it.
   let budget = limit

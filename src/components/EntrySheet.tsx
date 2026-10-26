@@ -47,14 +47,19 @@ export function EntrySheet({
     setWasOpen(open)
     if (open) setSession((s) => s + 1)
   }
+  // The parent clears `entry` the moment the sheet starts closing; keep showing the
+  // entry it was opened for until the exit animation ends (no flash of the Add form).
+  const [shown, setShown] = useState(entry)
+  if (entry && entry !== shown) setShown(entry)
+  const current = open ? entry : shown
 
   const ready = accounts && categories && entries && settings !== undefined && latestRate !== undefined
   return (
-    <Sheet open={open} onClose={onClose} title={t(entry ? 'entry.editTitle' : 'entry.addTitle')}>
+    <Sheet open={open} onClose={onClose} title={t(current ? 'entry.editTitle' : 'entry.addTitle')}>
       {ready && (
         <EntryForm
-          key={`${session}-${entry?.id ?? 'new'}`}
-          entry={entry}
+          key={`${session}-${current?.id ?? 'new'}`}
+          entry={current}
           accounts={accounts}
           categories={categories}
           entries={entries}

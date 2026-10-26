@@ -2,21 +2,13 @@ import { useState } from 'react'
 import { useI18n } from '../i18n'
 import { useData } from '../lib/data'
 import type { Account } from '../lib/db'
-import { normalizeDigits, round2 } from '../lib/money'
+import { normalizeDigits, parseSignedAmount } from '../lib/money'
 import { updateAccount } from '../lib/store'
 import { showToast } from '../lib/toast'
 import { Button } from './Button'
 import { Sheet } from './Sheet'
 import { useBackToClose } from './useBackToClose'
 import styles from './AccountSheet.module.css'
-
-/** Opening balances may be zero or negative (an overdrawn bank), unlike entry amounts. */
-function parseOpening(text: string): number | null {
-  const s = normalizeDigits(text.trim()).replace(/\s|,(?=\d{3}\b)/g, '').replace(',', '.')
-  if (s === '' || s === '-') return 0
-  if (!/^-?\d+(\.\d+)?$/.test(s)) return null
-  return round2(Number(s))
-}
 
 /** SPEC §6 Settings → accounts: name and opening balance. Saving shows an Undo toast. */
 export function AccountSheet({ account, onClose }: { account: Account | null; onClose: () => void }) {
@@ -34,7 +26,7 @@ function AccountForm({ account, onDone }: { account: Account; onDone: () => void
   const { db } = useData()
   const [name, setName] = useState(account.name)
   const [openingText, setOpeningText] = useState(String(account.opening_balance))
-  const opening = parseOpening(openingText)
+  const opening = parseSignedAmount(openingText)
   const valid = name.trim().length > 0 && opening !== null
 
   async function save() {

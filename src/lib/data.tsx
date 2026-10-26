@@ -12,6 +12,10 @@ const DataContext = createContext<DataContextValue | null>(null)
 export function DataProvider({ userId, children }: { userId: string; children: ReactNode }) {
   const db = useMemo(() => dbFor(userId), [userId])
   useEffect(() => startSync(db), [db])
+  useEffect(() => {
+    // Ask the browser not to evict local data under storage pressure: the outbox may hold unsynced entries.
+    void navigator.storage?.persist?.().catch(() => false)
+  }, [])
   const value = useMemo(() => ({ db, userId }), [db, userId])
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>
 }

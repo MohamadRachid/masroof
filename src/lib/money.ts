@@ -26,18 +26,34 @@ export function normalizeDigits(s: string): string {
   return s.replace(/[٠-٩۰-۹٫٬]/g, (ch) => DIGITS[ch] ?? ch)
 }
 
-/**
- * What the user typed → a positive amount, or null. Accepts Arabic/Persian
- * digits, "12,5" (comma as decimal when it's the only separator) and "1,250.75".
- */
-export function parseAmount(input: string): number | null {
+/** An unsigned number from what the user typed, rounded to cents; null if it isn't one. */
+function readNumber(input: string): number | null {
   let s = normalizeDigits(input.trim().replace(/\s/g, ''))
   if (s.includes(',') && s.includes('.')) s = s.replace(/,/g, '')
   else if (/^\d+,\d{1,2}$/.test(s)) s = s.replace(',', '.')
   else s = s.replace(/,/g, '')
   if (!/^\d+(\.\d+)?$/.test(s)) return null
   const n = round2(Number(s))
-  return n > 0 && n <= MAX_AMOUNT ? n : null
+  return Number.isFinite(n) ? n : null
+}
+
+/**
+ * What the user typed → a positive amount, or null. Accepts Arabic/Persian
+ * digits, "12,5" (comma as decimal when it's the only separator) and "1,250.75".
+ */
+export function parseAmount(input: string): number | null {
+  const n = readNumber(input)
+  return n !== null && n > 0 && n <= MAX_AMOUNT ? n : null
+}
+
+/** Opening balances: empty means 0, may be negative (an overdrawn bank), never NaN or out of range. */
+export function parseSignedAmount(input: string): number | null {
+  const s = input.trim()
+  if (s === '') return 0
+  const negative = /^[-−]/.test(s)
+  const n = readNumber(negative ? s.slice(1) : s)
+  if (n === null || n > MAX_AMOUNT) return null
+  return negative && n !== 0 ? -n : n
 }
 
 type BalanceAccount = { id: string; opening_balance: number }

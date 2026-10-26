@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { useSyncExternalStore } from 'react'
 import { keyColumn, type MasroofDB, type Row } from './db'
 import { supabase } from './supabase'
-import { pull, push, syncEvents, type Remote } from './sync'
+import { syncEvents, syncOnce, type Remote } from './sync'
 
 const PAGE = 1000
 const PUSH_DELAY_MS = 400
@@ -78,12 +78,8 @@ export function startSync(db: MasroofDB, remote: Remote = supabaseRemote): () =>
     }
     running = true
     try {
-      await push(db, remote)
-      await pull(db, remote)
-      setStatus({ failed: false })
-    } catch (err) {
-      console.warn('sync failed', err)
-      setStatus({ failed: true })
+      const { ok } = await syncOnce(db, remote)
+      setStatus({ failed: !ok })
     } finally {
       running = false
       if (again) {

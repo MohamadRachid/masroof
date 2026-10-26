@@ -212,7 +212,7 @@ Past plans: list; tap → read-only planned vs. actual.
 - Dexie tables mirror Supabase tables. UI reads from Dexie only.
 - Every write goes to Dexie first, then into an `outbox` table; a sync worker flushes the outbox to Supabase whenever online (and on app focus).
 - Pull: on start and every 60 s while visible, fetch rows with `updated_at > last_sync` per table, merge last-write-wins by `updated_at`.
-- Conflicts are rare (one user); last-write-wins is acceptable.
+- Conflicts are rare (one user); last-write-wins is acceptable. In practice it is "last push wins": the server stamps `updated_at` on arrival, so a device that was offline for a long time can overwrite a newer change made elsewhere.
 - Soft deletes sync like updates.
 - Show a small "n unsynced" indicator in the header when the outbox is non-empty.
 
@@ -224,6 +224,7 @@ Past plans: list; tap → read-only planned vs. actual.
 - `rate_mode = manual`: `settings.manual_rate`, shown as "manual" in the footer, stays until changed.
 - Every new entry stores the effective rate at creation. Editing an entry does not change its stored rate unless the user explicitly taps "update rate" on the edit sheet.
 - No transfer/exchange feature. USD and GHS never move between each other in the app.
+- Phase 1 note (2026-10-26): until FX exists, entries are stored with `rate_usd_ghs = 1`, which means "no rate yet" (a real USD/GHS rate is never 1). Phase 2 runs a one-time repair that replaces 1 with the rate of each entry's date. That repair is not a user edit, so §9's "update rate" rule doesn't apply to it.
 
 ---
 
@@ -237,7 +238,7 @@ Each phase ends with the app runnable on the phone via the deployed URL. Do not 
 3. **Plan.** Plans + envelopes, Plan screen, Safe-to-spend, weekly limit, live impact line in Add, envelope list on Home.
 4. **Salary flow.** Salary received, month close summary, leftover handling, payday nudge.
 5. **Trust.** Reconcile + adjustment + drift history. Recurring + due banner.
-6. **Offline.** Dexie mirror, outbox, sync worker, unsynced indicator. Install on phone and laptop; verify an entry made offline on the phone shows on the laptop after reconnect.
+6. **Offline.** Dexie mirror, outbox, sync worker, unsynced indicator. Install on phone and laptop; verify an entry made offline on the phone shows on the laptop after reconnect. (Note 2026-10-26: the Dexie mirror, outbox, push/pull sync and the unsynced chip shipped in phase 1, because CLAUDE.md requires the UI to read only from Dexie. Phase 6 keeps offline hardening and the two-device check.)
 7. **v2 (not now):** Web Push on Android/desktop for weekly-limit and payday nudges (edge function + cron + VAPID). Export to CSV.
 
 ---

@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto'
 import { describe, expect, it } from 'vitest'
 import { MasroofDB, type Row } from './db'
-import { INITIAL_PULL_KEY, pull, push, queueRows, type Remote } from './sync'
+import { INITIAL_PULL_KEY, pull, push, queueRows, syncOnce, type Remote } from './sync'
 
 let dbCount = 0
 const freshDb = () => new MasroofDB(`test_${++dbCount}_${Date.now()}`)
@@ -19,10 +19,13 @@ function fakeServer() {
     tables.set(table, t)
   }
   let fail = false
+  const rejected = new Map<string, string>()
   let duringUpsert: (() => Promise<void>) | null = null
   const remote: Remote = {
     async upsert(table, rows) {
       if (fail) throw new Error('offline')
+      const bad = rows.find((r) => rejected.has(String(r.id)))
+      if (bad) throw Object.assign(new Error('rejected'), { code: rejected.get(String(bad.id)) })
       upserts.push({ table, rows })
       if (duringUpsert) await duringUpsert()
       for (const r of rows) put(table, r)
@@ -39,6 +42,12 @@ function fakeServer() {
     put,
     rows: (table: string) => [...(tables.get(table)?.values() ?? [])],
     setFail: (v: boolean) => (fail = v),
+    reject: (id: string, code: string) => rejected.set(id, code),
+    putAt: (table: string, row: Row, updatedAt: string) => {
+      const t = tables.get(table) ?? new Map<string, Row>()
+      t.set(String(row.id), { ...row, updated_at: updatedAt })
+      tables.set(table, t)
+    },
     onUpsert: (fn: () => Promise<void>) => (duringUpsert = fn),
   }
 }
@@ -151,5 +160,46 @@ describe('pull', () => {
     const local = await db.entries.get('a')
     expect(local?.deleted_at).toBe('2026-10-26T10:00:00.000Z')
     expect(local?.updated_at).toBe(server.rows('entries')[0]?.updated_at)
+  })
+})
+
+describe('robustness', () => {
+  it('a row the server permanently rejects is set aside; the other rows still sync', async () => {
+    const db = freshDb()
+    const server = fakeServer()
+    server.reject('bad', '22003')
+    await queueRows(db, 'entries', [entry('good1', 1), entry('bad', 2), entry('good2', 3)])
+
+    const result = await push(db, server.remote)
+
+    expect(server.rows('entries').map((r) => r.id).sort()).toEqual(['good1', 'good2'])
+    expect(result.rejected).toEqual(['bad'])
+    expect(await db.outbox.count()).toBe(0)
+  })
+
+  it('still pulls when push fails, and reports the failure', async () => {
+    const db = freshDb()
+    const server = fakeServer()
+    server.put('entries', entry('remote', 7))
+    await queueRows(db, 'entries', [entry('local', 1)])
+    server.setFail(true)
+
+    const result = await syncOnce(db, server.remote)
+
+    expect(result.ok).toBe(false)
+    expect(await db.entries.get('remote')).toBeTruthy()
+    expect(await db.outbox.count()).toBe(1)
+  })
+
+  it('re-reads a short window before the cursor, so a row committed late is not lost', async () => {
+    const db = freshDb()
+    const server = fakeServer()
+    server.put('entries', entry('a', 1)) // stamped 12:00:01
+    await pull(db, server.remote)
+    server.putAt('entries', entry('late', 2), '2026-10-26T11:59:59.000000+00:00') // older than the cursor
+
+    await pull(db, server.remote)
+
+    expect(await db.entries.get('late')).toBeTruthy()
   })
 })
