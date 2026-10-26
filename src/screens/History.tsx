@@ -2,11 +2,11 @@ import { useState } from 'react'
 import { EmptyState } from '../components/EmptyState'
 import { EntryRow } from '../components/EntryRow'
 import { Icon } from '../components/Icon'
-import { Money } from '../components/Money'
+import { Equivalent, Money } from '../components/Money'
 import { Screen } from '../components/Screen'
 import { useI18n } from '../i18n'
 import { formatLongDate } from '../i18n/format'
-import { useAccounts, useCategories, useEntries } from '../lib/data'
+import { useAccounts, useCategories, useDisplayRate, useEntries } from '../lib/data'
 import { parseLocalDate, relativeDay } from '../lib/dates'
 import type { Entry } from '../lib/db'
 import { groupByDay, matchesSearch } from '../lib/entries'
@@ -25,6 +25,7 @@ export default function History({ onOpenEntry }: { onOpenEntry: (entry: Entry) =
   const [accountId, setAccountId] = useState<string | null>(null)
   const [limit, setLimit] = useState(PAGE)
   const today = useToday()
+  const rate = useDisplayRate()
 
   if (!accounts || !categories || !entries) return null
   if (entries.length === 0) {
@@ -101,7 +102,10 @@ export default function History({ onOpenEntry }: { onOpenEntry: (entry: Entry) =
                   </h2>
                   <span className={styles.totals}>
                     {Object.entries(g.outTotals).map(([cur, total]) => (
-                      <Money key={cur} value={total ?? 0} currency={cur} tone="out" size="sm" />
+                      <span key={cur} className={styles.total}>
+                        <Money value={total ?? 0} currency={cur} tone="out" size="sm" />
+                        <Equivalent amount={total ?? 0} currency={cur} rate={rate} />
+                      </span>
                     ))}
                   </span>
                 </div>

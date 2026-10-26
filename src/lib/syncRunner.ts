@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { useSyncExternalStore } from 'react'
 import { keyColumn, type MasroofDB, type Row } from './db'
 import { supabase } from './supabase'
+import { repairPlaceholderRates } from './store'
 import { syncEvents, syncOnce, type Remote } from './sync'
 
 const PAGE = 1000
@@ -67,19 +68,25 @@ export function startSync(db: MasroofDB, remote: Remote = supabaseRemote): () =>
   let again = false
   let debounce: number | undefined
 
+  // Phase 1 entries saved before any rate existed get their day's rate. Local data is
+  // enough, so this never waits for the network.
+  const repair = () => repairPlaceholderRates(db).catch((err: unknown) => console.warn('rate repair failed', err))
+
   const run = async () => {
     if (running) {
       again = true
       return
     }
-    if (!navigator.onLine) {
-      setStatus({ failed: true })
-      return
-    }
     running = true
     try {
+      await repair()
+      if (!navigator.onLine) {
+        setStatus({ failed: true })
+        return
+      }
       const { ok } = await syncOnce(db, remote)
       setStatus({ failed: !ok })
+      await repair() // a pull may have brought the first rate
     } finally {
       running = false
       if (again) {

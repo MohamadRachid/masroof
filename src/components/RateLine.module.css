@@ -1,0 +1,21 @@
+.line {
+  align-self: center;
+  min-height: var(--tap);
+  padding-inline: var(--s-3);
+  border-radius: var(--r-full);
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  transition: color var(--dur-2) ease;
+}
+
+.line[data-none] {
+  color: var(--warn);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .line:hover {
+    color: var(--text);
+  }
+}

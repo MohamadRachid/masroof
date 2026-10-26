@@ -5,13 +5,14 @@ import { useAccounts, useCategories, useData, useEntries, useLatestRate, useSett
 import { localDateISO, relativeDay } from '../lib/dates'
 import type { Account, Category, Entry } from '../lib/db'
 import { lastUsed, quickTiles, type QuickTile } from '../lib/entries'
-import { effectiveRate } from '../lib/fx'
+import { effectiveRate, formatRate, isRealRate } from '../lib/fx'
 import { formatMoney, normalizeDigits, parseAmount } from '../lib/money'
 import { accountName, categoryName, iconFor } from '../lib/names'
 import { addEntry, deleteEntry, restoreEntry, updateEntry, type EntryType } from '../lib/store'
 import { showToast } from '../lib/toast'
 import { Button } from './Button'
 import { Icon } from './Icon'
+import { Equivalent } from './Money'
 import { Sheet } from './Sheet'
 import { useBackToClose } from './useBackToClose'
 import styles from './EntrySheet.module.css'
@@ -111,6 +112,8 @@ function EntryForm({
   const [note, setNote] = useState(entry?.note ?? '')
   const [date, setDate] = useState(entry?.date ?? today)
   const [busy, setBusy] = useState(false)
+  // Editing never changes the frozen rate unless Ali taps "update rate" (SPEC §9).
+  const [rateOverride, setRateOverride] = useState<number | null>(null)
   const categoryRow = useRef<HTMLDivElement>(null)
 
   // The default category may sit past the edge of the scrolling row; bring it into view.
@@ -123,6 +126,7 @@ function EntryForm({
   const category = categories.find((c) => c.id === categoryId)
   const valid = amount !== null && !!account && !!category
   const visible = allowedFor(type, categories)
+  const shownRate = entry ? (rateOverride ?? entry.rate_usd_ghs) : rate
   const tiles = entry
     ? []
     : quickTiles(entries, today).filter((tile) => accounts.some((a) => a.id === tile.account_id) && categories.some((c) => c.id === tile.category_id))
@@ -149,7 +153,7 @@ function EntryForm({
     setBusy(true)
     const fields = { type, amount, account_id: accountId, category_id: categoryId, note: note || null, date }
     if (entry) {
-      const { before } = await updateEntry(db, entry, fields)
+      const { before } = await updateEntry(db, entry, rateOverride !== null ? { ...fields, rate_usd_ghs: rateOverride } : fields)
       showToast({ message: t('toast.updated'), action: { label: t('toast.undo'), run: () => void restoreEntry(db, before) } })
     } else {
       const saved = await addEntry(db, userId, { ...fields, rate_usd_ghs: rate })
@@ -240,6 +244,9 @@ function EntryForm({
         />
         <span className={styles.currency}>{account?.currency}</span>
       </label>
+      <p className={styles.equiv} aria-live="polite">
+        {amount !== null && account && <Equivalent amount={amount} currency={account.currency} rate={shownRate} />}
+      </p>
 
       {type === 'adjust' ? (
         <p className={styles.adjust}>{t('entry.adjust')}</p>
@@ -288,6 +295,23 @@ function EntryForm({
           <input type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} className={styles.dateInput} />
         </label>
       </div>
+
+      {entry && (
+        <div className={styles.rateRow}>
+          <span>
+            {rateOverride !== null
+              ? t('entry.rateWillUpdate', { rate: formatRate(rateOverride) })
+              : isRealRate(entry.rate_usd_ghs)
+                ? t('entry.rateSaved', { rate: formatRate(entry.rate_usd_ghs) })
+                : t('entry.rateNone')}
+          </span>
+          {rateOverride === null && isRealRate(rate) && rate !== entry.rate_usd_ghs && (
+            <button type="button" className={styles.rateBtn} onClick={() => setRateOverride(rate)}>
+              {t('entry.updateRate', { rate: formatRate(rate) })}
+            </button>
+          )}
+        </div>
+      )}
 
       <div className={styles.footer}>
         {entry && (

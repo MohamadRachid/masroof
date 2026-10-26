@@ -1,5 +1,6 @@
 import type { Account, Entry, MasroofDB, Settings } from './db'
 import { nowISO } from './dates'
+import { isRealRate, rateForDate } from './fx'
 import { round2 } from './money'
 import { queueRows } from './sync'
 
@@ -110,4 +111,22 @@ export async function updateSettings(
   changes: Partial<Omit<Settings, 'user_id' | 'created_at' | 'updated_at' | 'deleted_at'>>,
 ): Promise<void> {
   await queueRows(db, 'settings', [{ ...settings, ...changes, updated_at: nowISO() }])
+}
+
+/**
+ * One-time repair (SPEC §9 note): entries saved before any rate existed carry
+ * rate 1; give them the daily rate of their own date. Not a user edit.
+ */
+export async function repairPlaceholderRates(db: MasroofDB): Promise<number> {
+  const rates = (await db.rates.toArray()).filter((r) => !r.deleted_at)
+  if (rates.length === 0) return 0
+  const stale = await db.entries.filter((e) => e.rate_usd_ghs === 1).toArray()
+  const now = nowISO()
+  const fixed: Entry[] = []
+  for (const e of stale) {
+    const rate = rateForDate(rates, e.date)
+    if (rate !== null && isRealRate(rate)) fixed.push({ ...e, rate_usd_ghs: rate, updated_at: now })
+  }
+  if (fixed.length > 0) await queueRows(db, 'entries', fixed)
+  return fixed.length
 }

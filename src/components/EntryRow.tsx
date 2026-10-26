@@ -2,7 +2,7 @@ import type { Account, Category, Entry } from '../lib/db'
 import { useI18n } from '../i18n'
 import { accountName, categoryName, iconFor } from '../lib/names'
 import { Icon } from './Icon'
-import { Money } from './Money'
+import { Equivalent, Money } from './Money'
 import styles from './EntryRow.module.css'
 
 /** One entry in a list: category, note/account, signed amount. Tapping opens it for editing. */
@@ -31,7 +31,11 @@ export function EntryRow({
         <span className={styles.name}>{entry.type === 'adjust' ? `${name} · ${t('entry.adjust')}` : name}</span>
         {meta && <span className={styles.meta}>{meta}</span>}
       </span>
-      <Money value={entry.amount} currency={account?.currency ?? ''} tone={tone} />
+      <span className={styles.amount}>
+        <Money value={entry.amount} currency={account?.currency ?? ''} tone={tone} />
+        {/* Entries use their own frozen rate (SPEC §5). */}
+        <Equivalent amount={entry.amount} currency={account?.currency ?? ''} rate={entry.rate_usd_ghs} />
+      </span>
     </button>
   )
 }

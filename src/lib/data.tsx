@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { createContext, useContext, useEffect, useMemo, type ReactNode } from 'react'
 import { dbFor, type MasroofDB } from './db'
+import { effectiveRate, type EffectiveRate } from './fx'
 import { INITIAL_PULL_KEY } from './sync'
 import { startSync } from './syncRunner'
 
@@ -61,4 +62,18 @@ export function useLatestRate() {
 export function useOutboxCount(): number {
   const { db } = useData()
   return useLiveQuery(() => db.outbox.count(), [db]) ?? 0
+}
+
+/** SPEC §5 effective rate now (manual, else latest daily, else none). undefined while loading. */
+export function useEffectiveRate(): EffectiveRate | undefined {
+  const settings = useSettings()
+  const latest = useLatestRate()
+  if (settings === undefined || latest === undefined) return undefined
+  return effectiveRate(settings, latest)
+}
+
+/** The rate to show equivalents with, or null when there is no real rate yet. */
+export function useDisplayRate(): number | null {
+  const eff = useEffectiveRate()
+  return eff && eff.source !== 'none' ? eff.rate : null
 }

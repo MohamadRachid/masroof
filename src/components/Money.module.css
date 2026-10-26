@@ -59,3 +59,12 @@
 .money[data-negative] .value {
   color: var(--bad);
 }
+
+.equivalent {
+  direction: ltr;
+  unicode-bidi: isolate;
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}

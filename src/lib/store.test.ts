@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto'
 import { describe, expect, it } from 'vitest'
 import { MasroofDB } from './db'
-import { addEntry, createAccounts, deleteEntry, restoreEntry, updateAccount, updateEntry, updateSettings } from './store'
+import { addEntry, createAccounts, deleteEntry, repairPlaceholderRates, restoreEntry, updateAccount, updateEntry, updateSettings } from './store'
 
 let dbCount = 0
 const freshDb = () => new MasroofDB(`store_${++dbCount}_${Date.now()}`)
@@ -79,5 +79,31 @@ describe('accounts and settings', () => {
     await updateSettings(db, settings, { usual_payday: 28, lang: 'ar' })
     const saved = await db.settings.get('u1')
     expect([saved?.usual_payday, saved?.lang, saved?.warn_pct]).toEqual([28, 'ar', 80])
+  })
+})
+
+describe('repairPlaceholderRates (phase 1 entries saved with rate 1)', () => {
+  it('replaces rate 1 with the rate of the entry date and queues the change; real rates stay', async () => {
+    const db = freshDb()
+    await db.rates.bulkPut([
+      { id: 'r1', date: '2026-10-24', usd_ghs: 11.6, source: 'test', created_at: '', updated_at: '', deleted_at: null },
+      { id: 'r2', date: '2026-10-26', usd_ghs: 11.622, source: 'test', created_at: '', updated_at: '', deleted_at: null },
+    ])
+    const old = await addEntry(db, 'u1', { ...input, date: '2026-10-25', rate_usd_ghs: 1 })
+    const kept = await addEntry(db, 'u1', { ...input, rate_usd_ghs: 12.5 })
+    await db.outbox.clear()
+
+    const fixed = await repairPlaceholderRates(db)
+
+    expect(fixed).toBe(1)
+    expect((await db.entries.get(old.id))?.rate_usd_ghs).toBe(11.6)
+    expect((await db.entries.get(kept.id))?.rate_usd_ghs).toBe(12.5)
+    expect((await db.outbox.toArray()).map((i) => i.key)).toEqual([old.id])
+  })
+
+  it('does nothing while no rate exists', async () => {
+    const db = freshDb()
+    await addEntry(db, 'u1', { ...input, rate_usd_ghs: 1 })
+    expect(await repairPlaceholderRates(db)).toBe(0)
   })
 })

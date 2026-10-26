@@ -131,3 +131,9 @@
   color: var(--text-2);
   text-align: center;
 }
+
+.total {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--s-2);
+}

@@ -121,6 +121,25 @@ export const en = {
   'accountSheet.save': 'Save',
   'sync.pending': '{count} unsynced',
   'sync.offline': 'Offline',
+
+  'fx.line': '1 USD = {rate} GHS',
+  'fx.auto': 'daily',
+  'fx.manual': 'manual',
+  'fx.today': 'today',
+  'fx.none': 'No exchange rate yet',
+  'more.section.rate': 'Exchange rate',
+  'rate.auto': 'Daily',
+  'rate.manual': 'Manual',
+  'rate.dailyInfo': 'Daily rate: 1 USD = {rate} GHS · {date}',
+  'rate.dailyNone': 'The daily rate hasn’t arrived yet.',
+  'rate.manualLabel': 'GHS for 1 USD',
+  'rate.save': 'Save rate',
+  'rate.invalid': 'Enter a rate like 11.62',
+  'toast.rateSaved': 'Exchange rate updated',
+  'entry.rateSaved': 'Saved rate: 1 USD = {rate} GHS',
+  'entry.rateNone': 'No rate saved with this entry',
+  'entry.updateRate': 'Use current rate {rate}',
+  'entry.rateWillUpdate': 'Rate will change to {rate} when you save',
 } as const
 
 export type MsgKey = keyof typeof en

@@ -1,10 +1,11 @@
 import { EntryRow } from '../components/EntryRow'
 import { Icon } from '../components/Icon'
-import { Money } from '../components/Money'
+import { Equivalent, Money } from '../components/Money'
+import { RateLine } from '../components/RateLine'
 import { Screen } from '../components/Screen'
 import { useI18n } from '../i18n'
 import { formatLongDate } from '../i18n/format'
-import { useAccounts, useCategories, useEntries } from '../lib/data'
+import { useAccounts, useCategories, useDisplayRate, useEntries } from '../lib/data'
 import { parseLocalDate } from '../lib/dates'
 import type { Entry } from '../lib/db'
 import { groupByDay } from '../lib/entries'
@@ -20,6 +21,7 @@ export default function Home({ onOpenEntry }: { onOpenEntry: (entry: Entry) => v
   const categories = useCategories()
   const entries = useEntries()
   const today = useToday()
+  const rate = useDisplayRate()
   if (!accounts || !categories || !entries) return null
 
   const currencyOf = (id: string) => accounts.find((a) => a.id === id)?.currency ?? ''
@@ -31,12 +33,17 @@ export default function Home({ onOpenEntry }: { onOpenEntry: (entry: Entry) => v
   return (
     <Screen title={t('home.title')} subtitle={formatLongDate(parseLocalDate(today), lang)}>
       <section className={styles.balances} aria-label={t('home.balances')}>
-        {accounts.map((a) => (
-          <div key={a.id} className={styles.balance}>
-            <span className={styles.balanceName}>{accountName(a, t)}</span>
-            <Money value={balance(a, entries)} currency={a.currency} size="xl" />
-          </div>
-        ))}
+        {accounts.map((a) => {
+          const value = balance(a, entries)
+          return (
+            <div key={a.id} className={styles.balance}>
+              <span className={styles.balanceName}>{accountName(a, t)}</span>
+              <Money value={value} currency={a.currency} size="xl" />
+              {/* Balances use the effective rate now (SPEC §5). */}
+              <Equivalent amount={value} currency={a.currency} rate={rate} />
+            </div>
+          )
+        })}
       </section>
 
       <button type="button" className={styles.planCard} onClick={() => goTab('plan')}>
@@ -56,7 +63,10 @@ export default function Home({ onOpenEntry }: { onOpenEntry: (entry: Entry) => v
           {todayGroup && (
             <span className={styles.totals}>
               {Object.entries(todayGroup.outTotals).map(([cur, total]) => (
-                <Money key={cur} value={total ?? 0} currency={cur} tone="out" size="sm" />
+                <span key={cur} className={styles.total}>
+                  <Money value={total ?? 0} currency={cur} tone="out" size="sm" />
+                  <Equivalent amount={total ?? 0} currency={cur} rate={rate} />
+                </span>
               ))}
             </span>
           )}
@@ -77,6 +87,8 @@ export default function Home({ onOpenEntry }: { onOpenEntry: (entry: Entry) => v
           <p className={styles.empty}>{t('home.todayEmpty')}</p>
         )}
       </section>
+
+      <RateLine />
     </Screen>
   )
 }

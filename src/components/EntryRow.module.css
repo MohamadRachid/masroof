@@ -55,3 +55,11 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.amount {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+}
