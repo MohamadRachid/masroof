@@ -18,3 +18,9 @@ const locales: Record<Lang, string> = { en: 'en-GB', ar: 'ar-u-nu-latn' }
 export function formatLongDate(date: Date, lang: Lang): string {
   return new Intl.DateTimeFormat(locales[lang], { weekday: 'long', day: 'numeric', month: 'long' }).format(date)
 }
+
+/** "20 Oct" / "20 أكتوبر" from a YYYY-MM-DD local date. */
+export function formatShortDate(iso: string, lang: Lang): string {
+  const [y = 1970, m = 1, d = 1] = iso.split('-').map(Number)
+  return new Intl.DateTimeFormat(locales[lang], { day: 'numeric', month: 'short' }).format(new Date(y, m - 1, d))
+}

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { ar } from './ar'
 import { en } from './en'
-import { dirFor, formatLongDate, interpolate } from './format'
+import { dirFor, formatLongDate, formatShortDate, interpolate } from './format'
 
 describe('translations', () => {
   it('Arabic has exactly the English keys', () => {
@@ -56,5 +56,14 @@ describe('formatLongDate', () => {
     expect(s).toContain('Monday')
     expect(s).toContain('26')
     expect(s).toContain('October')
+  })
+})
+
+describe('formatShortDate', () => {
+  it('gives day + short month, Latin digits in Arabic', () => {
+    expect(formatShortDate('2026-10-20', 'en')).toBe('20 Oct')
+    const ar = formatShortDate('2026-10-20', 'ar')
+    expect(ar).toContain('20')
+    expect(ar).not.toMatch(/[٠-٩]/)
   })
 })

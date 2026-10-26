@@ -11,7 +11,10 @@
 
 /* Reserved for the "n unsynced" indicator (phase 6). */
 .syncSlot {
+  display: flex;
   flex: 1;
+  justify-content: flex-end;
+  min-width: 0;
 }
 
 /* ── Phone: header + bottom tab bar ─────────────────────────────────── */

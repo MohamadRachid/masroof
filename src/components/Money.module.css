@@ -1,0 +1,61 @@
+.money {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3em;
+  direction: ltr;
+  unicode-bidi: isolate;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.value {
+  font-weight: 450;
+}
+
+.currency {
+  color: var(--text-2);
+  font-size: 0.72em;
+  font-weight: 450;
+  letter-spacing: 0.04em;
+}
+
+.money[data-tone='in'] .value {
+  color: var(--good);
+}
+
+.money[data-size='sm'] {
+  font-size: var(--fs-sm);
+}
+
+.money[data-size='md'] {
+  font-size: var(--fs-md);
+}
+
+/* Big amounts get the number typeface. */
+.money[data-size='lg'] .value,
+.money[data-size='xl'] .value {
+  font-family: var(--font-num);
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  font-variant-numeric: lining-nums;
+}
+
+.money[data-size='lg'] {
+  font-size: var(--fs-2xl);
+  line-height: 1.1;
+}
+
+.money[data-size='xl'] {
+  font-size: var(--fs-3xl);
+  line-height: 1;
+}
+
+.money[data-size='lg'] .currency,
+.money[data-size='xl'] .currency {
+  font-size: var(--fs-sm);
+}
+
+/* A balance below zero is a warning. */
+.money[data-negative] .value {
+  color: var(--bad);
+}

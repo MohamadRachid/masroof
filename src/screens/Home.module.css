@@ -1,0 +1,124 @@
+.balances {
+  display: grid;
+  gap: var(--s-2);
+}
+
+@media (min-width: 600px) {
+  .balances {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.balance {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-4) var(--s-5) var(--s-5);
+  border-radius: var(--r-3);
+  background: linear-gradient(180deg, var(--surface-1), rgb(23 22 19 / 0.5));
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.balanceName {
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+
+.planCard {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  width: 100%;
+  padding: var(--s-4);
+  border-radius: var(--r-3);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  color: var(--text-2);
+  text-align: start;
+  transition:
+    background-color var(--dur-2) ease,
+    transform 160ms var(--ease-out);
+}
+
+.planCard:active {
+  transform: scale(0.99);
+  background: var(--surface-1);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .planCard:hover {
+    background: var(--surface-1);
+  }
+}
+
+.planIcon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--r-2);
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.planText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.planTitle {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.planBody {
+  font-size: var(--fs-sm);
+}
+
+.today {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.todayHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding-inline: var(--s-1);
+}
+
+.sectionTitle {
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  font-weight: 450;
+}
+
+.totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  color: var(--text-2);
+}
+
+.list {
+  overflow: hidden;
+  border-radius: var(--r-3);
+  background: var(--surface-1);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.list > * + * {
+  box-shadow: inset 0 1px 0 var(--line);
+}
+
+.empty {
+  padding: var(--s-5);
+  border-radius: var(--r-3);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--text-2);
+  text-align: center;
+}

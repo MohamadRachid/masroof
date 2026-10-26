@@ -1,0 +1,60 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.label {
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+
+.field input {
+  width: 100%;
+  height: 52px;
+  padding-inline: var(--s-4);
+  border: 0;
+  border-radius: var(--r-2);
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  color: var(--text);
+  font-size: var(--fs-lg);
+}
+
+.field input:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 1.5px var(--text);
+}
+
+.field[data-invalid] input {
+  box-shadow: inset 0 0 0 1.5px var(--bad);
+}
+
+.amount {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.amount input {
+  padding-inline-end: 56px;
+  font-family: var(--font-num);
+  font-size: var(--fs-xl);
+}
+
+:global([dir='rtl']) .amount input {
+  text-align: right;
+}
+
+.cur {
+  position: absolute;
+  inset-inline-end: var(--s-4);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}

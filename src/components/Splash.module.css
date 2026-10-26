@@ -1,6 +1,9 @@
 .splash {
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-4);
   min-height: 100dvh;
   color: var(--text);
   opacity: 0;
@@ -16,4 +19,9 @@
     opacity: 1;
     transform: scale(1);
   }
+}
+
+.label {
+  color: var(--text-2);
+  font-size: var(--fs-sm);
 }

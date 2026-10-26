@@ -184,6 +184,12 @@ const paths = {
     </>
   ),
   check: <path d="M20 6 9 17l-5-5" />,
+  search: (
+    <>
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-3.5-3.5" />
+    </>
+  ),
   refresh: (
     <>
       <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
@@ -215,4 +221,8 @@ export function Icon({ name, size = 22, strokeWidth = 1.75 }: { name: IconName; 
       {paths[name]}
     </svg>
   )
+}
+
+export function isIconName(name: string): name is IconName {
+  return Object.hasOwn(paths, name)
 }

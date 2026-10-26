@@ -1,21 +1,31 @@
-.soon {
+.offline {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: var(--s-4);
-  color: var(--text-2);
+  justify-content: center;
+  gap: var(--s-3);
+  max-width: 400px;
+  min-height: 100dvh;
+  margin-inline: auto;
+  padding: var(--s-6) var(--gutter);
 }
 
-.soonIcon {
+.offlineIcon {
   display: grid;
   place-items: center;
-  width: 48px;
-  height: 48px;
-  border-radius: var(--r-2);
-  background: var(--surface-2);
-  color: var(--text);
+  width: 56px;
+  height: 56px;
+  margin-block-end: var(--s-2);
+  border-radius: var(--r-3);
+  background: var(--warn-soft);
+  color: var(--warn);
 }
 
-.soon > button {
-  margin-block-start: var(--s-2);
+.offlineTitle {
+  font-size: var(--fs-2xl);
+}
+
+.offlineBody {
+  margin-block-end: var(--s-3);
+  color: var(--text-2);
 }

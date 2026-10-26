@@ -1,0 +1,155 @@
+import 'fake-indexeddb/auto'
+import { describe, expect, it } from 'vitest'
+import { MasroofDB, type Row } from './db'
+import { INITIAL_PULL_KEY, pull, push, queueRows, type Remote } from './sync'
+
+let dbCount = 0
+const freshDb = () => new MasroofDB(`test_${++dbCount}_${Date.now()}`)
+
+/** An in-memory stand-in for Supabase that stamps updated_at like the real server. */
+function fakeServer() {
+  const tables = new Map<string, Map<string, Row>>()
+  const upserts: { table: string; rows: Row[] }[] = []
+  let clock = 0
+  const stamp = () => `2026-10-26T12:00:${String(++clock).padStart(2, '0')}.000000+00:00`
+  const put = (table: string, row: Row) => {
+    const t = tables.get(table) ?? new Map<string, Row>()
+    const key = String(table === 'settings' ? row.user_id : row.id)
+    t.set(key, { ...row, updated_at: stamp() })
+    tables.set(table, t)
+  }
+  let fail = false
+  let duringUpsert: (() => Promise<void>) | null = null
+  const remote: Remote = {
+    async upsert(table, rows) {
+      if (fail) throw new Error('offline')
+      upserts.push({ table, rows })
+      if (duringUpsert) await duringUpsert()
+      for (const r of rows) put(table, r)
+    },
+    async pullSince(table, since) {
+      return [...(tables.get(table)?.values() ?? [])]
+        .filter((r) => !since || String(r.updated_at) > since)
+        .sort((a, b) => (String(a.updated_at) < String(b.updated_at) ? -1 : 1))
+    },
+  }
+  return {
+    remote,
+    upserts,
+    put,
+    rows: (table: string) => [...(tables.get(table)?.values() ?? [])],
+    setFail: (v: boolean) => (fail = v),
+    onUpsert: (fn: () => Promise<void>) => (duringUpsert = fn),
+  }
+}
+
+const entry = (id: string, amount: number, extra: Row = {}): Row => ({
+  id,
+  user_id: 'u1',
+  amount,
+  type: 'out',
+  date: '2026-10-26',
+  updated_at: '2026-10-26T09:00:00.000Z',
+  deleted_at: null,
+  ...extra,
+})
+
+describe('push', () => {
+  it('sends a queued row once, without updated_at, and empties the outbox', async () => {
+    const db = freshDb()
+    const server = fakeServer()
+    await queueRows(db, 'entries', [entry('a', 10)])
+    expect(await db.entries.get('a')).toBeTruthy()
+    expect(await db.outbox.count()).toBe(1)
+
+    await push(db, server.remote)
+
+    expect(server.upserts).toHaveLength(1)
+    expect(server.upserts[0]?.rows[0]).not.toHaveProperty('updated_at')
+    expect(await db.outbox.count()).toBe(0)
+    expect(server.rows('entries')).toHaveLength(1)
+  })
+
+  it('coalesces several edits of one row into a single upsert of the latest version', async () => {
+    const db = freshDb()
+    const server = fakeServer()
+    await queueRows(db, 'entries', [entry('a', 10)])
+    await queueRows(db, 'entries', [entry('a', 12)])
+    await queueRows(db, 'entries', [entry('a', 15)])
+
+    await push(db, server.remote)
+
+    expect(server.upserts).toHaveLength(1)
+    expect(server.upserts[0]?.rows).toHaveLength(1)
+    expect(server.upserts[0]?.rows[0]?.amount).toBe(15)
+  })
+
+  it('keeps everything queued when the server is unreachable', async () => {
+    const db = freshDb()
+    const server = fakeServer()
+    server.setFail(true)
+    await queueRows(db, 'entries', [entry('a', 10)])
+
+    await expect(push(db, server.remote)).rejects.toThrow()
+    expect(await db.outbox.count()).toBe(1)
+  })
+
+  it('does not drop a write queued while a push is in flight', async () => {
+    const db = freshDb()
+    const server = fakeServer()
+    await queueRows(db, 'entries', [entry('a', 10)])
+    server.onUpsert(async () => {
+      server.onUpsert(async () => {})
+      await queueRows(db, 'entries', [entry('b', 20)])
+    })
+
+    await push(db, server.remote)
+
+    const left = await db.outbox.toArray()
+    expect(left.map((i) => i.key)).toEqual(['b'])
+  })
+})
+
+describe('pull', () => {
+  it('applies rows newer than the cursor, advances it, and marks the initial pull done', async () => {
+    const db = freshDb()
+    const server = fakeServer()
+    server.put('entries', entry('a', 10))
+    server.put('categories', { id: 'c1', user_id: 'u1', name_en: 'Food' })
+
+    await pull(db, server.remote)
+
+    expect(await db.entries.count()).toBe(1)
+    expect(await db.categories.count()).toBe(1)
+    expect((await db.meta.get(INITIAL_PULL_KEY))?.value).toBe('1')
+    const cursor = (await db.meta.get('cursor:entries'))?.value
+    expect(cursor).toBe(server.rows('entries')[0]?.updated_at)
+
+    server.put('entries', entry('b', 20))
+    await pull(db, server.remote)
+    expect(await db.entries.count()).toBe(2)
+  })
+
+  it('never overwrites a row that has an unsent local change', async () => {
+    const db = freshDb()
+    const server = fakeServer()
+    server.put('entries', entry('a', 10))
+    await queueRows(db, 'entries', [entry('a', 99)]) // edited offline, not pushed yet
+
+    await pull(db, server.remote)
+
+    expect((await db.entries.get('a'))?.amount).toBe(99)
+  })
+
+  it('a pushed row comes back with the server timestamp (deletes sync like updates)', async () => {
+    const db = freshDb()
+    const server = fakeServer()
+    await queueRows(db, 'entries', [entry('a', 10, { deleted_at: '2026-10-26T10:00:00.000Z' })])
+    await push(db, server.remote)
+    await pull(db, server.remote)
+
+    const local = await db.entries.get('a')
+    expect(local?.deleted_at).toBe('2026-10-26T10:00:00.000Z')
+    expect(local?.updated_at).toBe(server.rows('entries')[0]?.updated_at)
+  })
+})

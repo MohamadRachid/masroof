@@ -5,6 +5,7 @@ import { LogoMark, Wordmark } from './Brand'
 import { Button } from './Button'
 import { Icon, type IconName } from './Icon'
 import { LangToggle } from './LangToggle'
+import { SyncChip } from './SyncChip'
 import styles from './Shell.module.css'
 
 type Tab = { route: Route; icon: IconName; label: MsgKey }
@@ -72,7 +73,9 @@ export function Shell({ route, children }: { route: Route; children: ReactNode }
           {TABS.map((tab) => link(tab, styles.railItem))}
         </nav>
         <div className={styles.railFoot}>
-          <span className={styles.syncSlot} />
+          <span className={styles.syncSlot}>
+            <SyncChip />
+          </span>
           <LangToggle />
         </div>
       </aside>
@@ -82,7 +85,9 @@ export function Shell({ route, children }: { route: Route; children: ReactNode }
           <LogoMark size={22} />
           <Wordmark />
         </div>
-        <span className={styles.syncSlot} />
+        <span className={styles.syncSlot}>
+          <SyncChip />
+        </span>
         <LangToggle />
       </header>
 
