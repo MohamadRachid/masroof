@@ -1,0 +1,35 @@
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+  /* Tabs change tens of times a day: fade only, no movement. */
+  animation: fade var(--dur-1) ease-out;
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  padding-block-start: var(--s-2);
+}
+
+.title {
+  font-size: var(--fs-3xl);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+:global([dir='rtl']) .title {
+  letter-spacing: 0;
+}
+
+.subtitle {
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}

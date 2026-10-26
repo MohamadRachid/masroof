@@ -63,6 +63,7 @@ export const ar: Record<MsgKey, string> = {
   'add.soon': 'إضافة العمليات تصل في التحديث القادم.',
 
   'common.close': 'إغلاق',
+  'error.screen': 'حدث خطأ في هذه الشاشة. بياناتك بأمان.',
   'common.gotIt': 'حسنًا',
 
   'pwa.updateReady': 'نسخة جديدة جاهزة',

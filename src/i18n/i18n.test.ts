@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { ar } from './ar'
 import { en } from './en'
-import { dirFor, interpolate } from './format'
+import { dirFor, formatLongDate, interpolate } from './format'
 
 describe('translations', () => {
   it('Arabic has exactly the English keys', () => {
@@ -38,5 +38,23 @@ describe('dirFor', () => {
   it('Arabic is right-to-left, English left-to-right', () => {
     expect(dirFor('ar')).toBe('rtl')
     expect(dirFor('en')).toBe('ltr')
+  })
+})
+
+describe('formatLongDate', () => {
+  const d = new Date(2026, 9, 26) // Monday 26 October 2026, local time
+
+  it('uses Latin digits in Arabic', () => {
+    const s = formatLongDate(d, 'ar')
+    expect(s).toContain('26')
+    expect(s).not.toMatch(/[٠-٩۰-۹]/)
+    expect(s).toMatch(/[؀-ۿ]/) // Arabic weekday/month names
+  })
+
+  it('names the weekday and month in English', () => {
+    const s = formatLongDate(d, 'en')
+    expect(s).toContain('Monday')
+    expect(s).toContain('26')
+    expect(s).toContain('October')
   })
 })

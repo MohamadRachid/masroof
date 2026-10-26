@@ -1,0 +1,132 @@
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.sectionTitle {
+  padding-inline: var(--s-1);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  font-weight: 450;
+}
+
+.group {
+  overflow: hidden;
+  border-radius: var(--r-3);
+  background: var(--surface-1);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  width: 100%;
+  min-height: 60px;
+  padding: var(--s-2) var(--s-4);
+  text-align: start;
+  transition: background-color var(--dur-2) ease;
+}
+
+.row + .row {
+  box-shadow: inset 0 1px 0 var(--line);
+}
+
+button.row:active:not(:disabled) {
+  background: var(--surface-2);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  button.row:hover:not(:disabled) {
+    background: var(--surface-2);
+  }
+}
+
+.rowIcon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-1);
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.rowLabel {
+  flex: 1;
+}
+
+.rowStack {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.rowHint {
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+}
+
+.rowValue {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Two-option segmented control with a sliding thumb. */
+.segmented {
+  position: relative;
+  display: grid;
+  flex: none;
+  grid-template-columns: 1fr 1fr;
+  padding: 3px;
+  border-radius: var(--r-full);
+  background: var(--bg);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.thumb {
+  position: absolute;
+  inset-block: 3px;
+  inset-inline-start: 3px;
+  width: calc(50% - 3px);
+  border-radius: var(--r-full);
+  background: var(--surface-3);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.4);
+  transform: translateX(calc(var(--i) * 100%));
+  transition: transform var(--dur-2) var(--ease-in-out);
+}
+
+:global([dir='rtl']) .thumb {
+  transform: translateX(calc(var(--i) * -100%));
+}
+
+.segment {
+  position: relative;
+  z-index: 1;
+  min-width: 76px;
+  height: 36px;
+  padding-inline: var(--s-3);
+  border-radius: var(--r-full);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  transition: color var(--dur-2) ease;
+}
+
+.segment[aria-checked='true'] {
+  color: var(--text);
+}
+
+.version {
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+  text-align: center;
+}
+
+/* LTR values (emails) still sit on the start edge in Arabic. */
+:global([dir='rtl']) .rowValue {
+  text-align: right;
+}

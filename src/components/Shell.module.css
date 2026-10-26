@@ -1,0 +1,197 @@
+.shell {
+  min-height: 100dvh;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text);
+}
+
+/* Reserved for the "n unsynced" indicator (phase 6). */
+.syncSlot {
+  flex: 1;
+}
+
+/* ── Phone: header + bottom tab bar ─────────────────────────────────── */
+
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  height: calc(var(--header-h) + var(--safe-top));
+  padding-block-start: var(--safe-top);
+  padding-inline: var(--gutter) var(--s-2);
+  transition:
+    background-color var(--dur-2) ease,
+    box-shadow var(--dur-2) ease;
+}
+
+.header[data-scrolled] {
+  background: rgb(14 13 11 / 0.82);
+  box-shadow: 0 1px 0 var(--line);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  backdrop-filter: blur(16px) saturate(1.4);
+}
+
+.main {
+  padding: var(--s-2) var(--gutter) calc(var(--tabbar-h) + var(--safe-bottom) + var(--s-10));
+}
+
+.content {
+  max-width: var(--content-max);
+  margin-inline: auto;
+}
+
+.tabbar {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 30;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  align-items: center;
+  height: calc(var(--tabbar-h) + var(--safe-bottom));
+  padding-block-end: var(--safe-bottom);
+  background: rgb(14 13 11 / 0.88);
+  box-shadow: 0 -1px 0 var(--line);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  backdrop-filter: blur(20px) saturate(1.4);
+}
+
+.tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  height: 100%;
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+  font-weight: 450;
+  text-decoration: none;
+  user-select: none;
+  transition: color var(--dur-2) ease;
+}
+
+.tab[aria-current='page'] {
+  color: var(--text);
+}
+
+.tabIcon {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 30px;
+  border-radius: var(--r-full);
+  transition:
+    background-color var(--dur-2) ease,
+    transform 160ms var(--ease-out);
+}
+
+.tab[aria-current='page'] .tabIcon {
+  background: rgb(237 232 223 / 0.1);
+}
+
+.tab:active .tabIcon {
+  transform: scale(0.92);
+}
+
+/* The one action that matters most: raised, centred, reachable by either thumb. */
+.add {
+  justify-self: center;
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  border-radius: var(--r-full);
+  background: var(--primary);
+  color: var(--on-primary);
+  box-shadow:
+    0 0 0 5px var(--bg),
+    0 12px 28px -8px rgb(0 0 0 / 0.75);
+  transform: translateY(-14px);
+  transition: transform 160ms var(--ease-out);
+}
+
+.add:active {
+  transform: translateY(-14px) scale(0.94);
+}
+
+/* ── Desktop: inline-start rail ─────────────────────────────────────── */
+
+.rail {
+  display: none;
+}
+
+@media (min-width: 960px) {
+  .header,
+  .tabbar {
+    display: none;
+  }
+
+  .rail {
+    position: fixed;
+    inset-block: 0;
+    inset-inline-start: 0;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-6);
+    width: var(--rail-w);
+    padding: var(--s-6) var(--s-4);
+    border-inline-end: 1px solid var(--line);
+  }
+
+  .rail .brand {
+    height: 40px;
+    padding-inline: var(--s-2);
+  }
+
+  .railNav {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .railItem {
+    display: flex;
+    align-items: center;
+    gap: var(--s-3);
+    height: var(--tap);
+    padding-inline: var(--s-3);
+    border-radius: var(--r-1);
+    color: var(--text-2);
+    text-decoration: none;
+    transition:
+      background-color var(--dur-2) ease,
+      color var(--dur-2) ease;
+  }
+
+  .railItem[aria-current='page'] {
+    background: var(--surface-2);
+    color: var(--text);
+  }
+
+  .railFoot {
+    display: flex;
+    align-items: center;
+    margin-block-start: auto;
+  }
+
+  .main {
+    margin-inline-start: var(--rail-w);
+    padding: var(--s-10) var(--s-8) var(--s-12);
+  }
+}
+
+@media (min-width: 960px) and (hover: hover) and (pointer: fine) {
+  .railItem:hover:not([aria-current='page']) {
+    background: var(--surface-1);
+    color: var(--text);
+  }
+}

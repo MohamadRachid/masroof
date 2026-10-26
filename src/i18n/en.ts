@@ -60,6 +60,7 @@ export const en = {
   'add.soon': 'Adding entries arrives in the next update.',
 
   'common.close': 'Close',
+  'error.screen': 'Something went wrong on this screen. Your data is safe.',
   'common.gotIt': 'Got it',
 
   'pwa.updateReady': 'New version ready',

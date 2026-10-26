@@ -1,0 +1,165 @@
+.root {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.root[data-state='closed'] {
+  pointer-events: none;
+}
+
+.scrim {
+  position: absolute;
+  inset: 0;
+  background: var(--scrim);
+  opacity: 1;
+  transition: opacity var(--dur-3) var(--ease-out);
+}
+
+.root[data-state='closed'] .scrim {
+  opacity: 0;
+  transition-duration: var(--dur-2);
+}
+
+/* The Add sheet opens many times a day: quick in, quicker out. */
+.panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 560px;
+  max-height: calc(100dvh - var(--safe-top) - 24px);
+  padding-block-end: var(--safe-bottom);
+  border-radius: var(--r-4) var(--r-4) 0 0;
+  background: var(--surface-1);
+  box-shadow:
+    0 -1px 0 var(--line-strong),
+    0 -24px 48px -16px rgb(0 0 0 / 0.55);
+  outline: none;
+  transform: translateY(0);
+  transition: transform var(--dur-3) var(--ease-drawer);
+  will-change: transform;
+}
+
+.root[data-state='closed'] .panel {
+  transform: translateY(100%);
+  transition-duration: var(--dur-2);
+}
+
+@starting-style {
+  .root[data-state='open'] .scrim {
+    opacity: 0;
+  }
+  .root[data-state='open'] .panel {
+    transform: translateY(100%);
+  }
+}
+
+.panel[data-dragging] {
+  transition: none;
+}
+
+.grabber {
+  padding-block-start: var(--s-2);
+  touch-action: none;
+  cursor: grab;
+}
+
+.handle {
+  display: block;
+  width: 36px;
+  height: 4px;
+  margin: 0 auto var(--s-1);
+  border-radius: var(--r-full);
+  background: var(--line-strong);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+  padding-inline: var(--s-5) var(--s-2);
+}
+
+.title {
+  font-size: var(--fs-lg);
+  font-weight: 500;
+}
+
+.close {
+  display: grid;
+  place-items: center;
+  width: var(--tap);
+  height: var(--tap);
+  border-radius: var(--r-full);
+  color: var(--text-2);
+  transition:
+    color var(--dur-2) ease,
+    background-color var(--dur-2) ease,
+    transform 160ms var(--ease-out);
+}
+
+.close:active {
+  transform: scale(0.92);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .close:hover {
+    color: var(--text);
+    background: var(--surface-2);
+  }
+}
+
+.body {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--s-2) var(--s-5) var(--s-5);
+}
+
+@media (min-width: 960px) {
+  .root {
+    align-items: center;
+    padding: var(--s-6);
+  }
+
+  .panel {
+    max-width: 480px;
+    padding-block-end: 0;
+    border-radius: var(--r-4);
+    box-shadow:
+      0 0 0 1px var(--line-strong),
+      0 32px 64px -24px rgb(0 0 0 / 0.7);
+    opacity: 1;
+    transform: scale(1);
+    transition:
+      transform var(--dur-2) var(--ease-out),
+      opacity var(--dur-2) var(--ease-out);
+  }
+
+  .root[data-state='closed'] .panel {
+    opacity: 0;
+    transform: scale(0.96);
+    transition-duration: 150ms;
+  }
+
+  @starting-style {
+    .root[data-state='open'] .panel {
+      opacity: 0;
+      transform: scale(0.96);
+    }
+  }
+
+  .handle {
+    display: none;
+  }
+
+  .grabber {
+    padding-block-start: var(--s-3);
+    touch-action: auto;
+    cursor: auto;
+  }
+}
