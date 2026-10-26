@@ -55,7 +55,8 @@ SPEC.md  CLAUDE.md  PROGRESS.md
 ## Hosting, routing, PWA
 - Live: https://mohamadrachid.github.io/masroof/ — `.github/workflows/deploy.yml` deploys on push to `main`; Supabase URL + publishable key are repo variables.
 - Base is `/masroof/` for `build` and `preview`, `/` for `dev`.
-- Hash router `src/lib/router.ts`: `goTab()` replaces history (Back → Home → exit); `navigate('add')` pushes so Android Back closes the sheet; non-`#/` hashes (magic-link tokens) map to Home.
+- Hash router `src/lib/router.ts`: `tabNavAction()` keeps history at most [Home, tab] (push leaving Home, replace between tabs, `history.back()` returning Home), so Back → Home → exit; `navigate('add')` pushes so Android Back closes the sheet; non-`#/` hashes (magic-link tokens) map to Home.
+- Session gate never waits on the network: `useSession` starts from the stored session (`src/lib/sessionState.ts`); only `SIGNED_OUT` shows Login. All Supabase requests time out after 15s (`fetchTimeout.ts`).
 - PWA uses `registerType: 'prompt'`: never auto-reload; `UpdatePrompt` asks.
 
 ## Supabase

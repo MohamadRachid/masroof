@@ -1,22 +1,21 @@
-import type { Session } from '@supabase/supabase-js'
 import { useEffect, useState } from 'react'
 import { authErrorKey, type AuthErrorKey } from './authErrors'
-import { supabase } from './supabase'
+import { initialSessionState, nextSessionState, type SessionState } from './sessionState'
+import { AUTH_STORAGE_KEY, supabase } from './supabase'
+
+export type { SessionState }
 
 export const OTP_LENGTH = 6
 export const RESEND_SECONDS = 60
 
 export type AuthResult = { ok: true } | { ok: false; error: AuthErrorKey }
 
-export type SessionState = {
-  status: 'loading' | 'signedOut' | 'signedIn'
-  email: string | null
-}
-
-function fromSession(session: Session | null): SessionState {
-  return session
-    ? { status: 'signedIn', email: session.user.email ?? null }
-    : { status: 'signedOut', email: null }
+function readStoredSession(): string | null {
+  try {
+    return localStorage.getItem(AUTH_STORAGE_KEY)
+  } catch {
+    return null
+  }
 }
 
 /** Drop `#access_token=…` / `#error=…` once Supabase has read it. */
@@ -28,13 +27,15 @@ function cleanAuthHash() {
 }
 
 export function useSession(): SessionState {
-  const [state, setState] = useState<SessionState>({ status: 'loading', email: null })
+  // Open from the stored session at once (offline too); never wait on a token refresh.
+  const [state, setState] = useState<SessionState>(() =>
+    initialSessionState(readStoredSession(), window.location.hash),
+  )
 
   useEffect(() => {
-    // INITIAL_SESSION fires on subscribe, so this also covers the first load.
     const { data } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN') cleanAuthHash()
-      setState(fromSession(session))
+      setState((prev) => nextSessionState(prev, event, session, readStoredSession()))
     })
     return () => data.subscription.unsubscribe()
   }, [])

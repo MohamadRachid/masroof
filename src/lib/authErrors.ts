@@ -1,19 +1,31 @@
-export type AuthErrorKey = 'invalidEmail' | 'badCode' | 'rateLimited' | 'offline' | 'unknown'
+export type AuthErrorKey = 'invalidEmail' | 'badCode' | 'rateLimited' | 'notAllowed' | 'offline' | 'unknown'
 
-type AuthErrorLike = { status?: number; code?: string; message?: string } | null
+type AuthErrorLike = { status?: number; code?: string; message?: string; name?: string } | null
 
-/** Turn a Supabase auth error into one of a few messages a person can act on. */
+const BY_CODE: Record<string, AuthErrorKey> = {
+  email_address_not_authorized: 'notAllowed',
+  otp_disabled: 'notAllowed',
+  signup_disabled: 'notAllowed',
+  over_email_send_rate_limit: 'rateLimited',
+  over_request_rate_limit: 'rateLimited',
+  otp_expired: 'badCode',
+  email_address_invalid: 'invalidEmail',
+}
+
+/** Turn a Supabase auth error into one of a few messages a person can act on. Codes first, message text last. */
 export function authErrorKey(err: AuthErrorLike, online: boolean): AuthErrorKey {
   if (!online) return 'offline'
   if (!err) return 'unknown'
 
-  const code = err.code ?? ''
-  const message = (err.message ?? '').toLowerCase()
+  const byCode = err.code ? BY_CODE[err.code] : undefined
+  if (byCode) return byCode
+  if (err.status === 429) return 'rateLimited'
 
-  if (message.includes('failed to fetch') || message.includes('network')) return 'offline'
-  if (err.status === 429 || code.includes('rate_limit')) return 'rateLimited'
-  if (code === 'otp_expired' || message.includes('expired') || message.includes('token')) return 'badCode'
-  if (code === 'email_address_invalid' || message.includes('email address')) return 'invalidEmail'
+  const message = (err.message ?? '').toLowerCase()
+  // supabase-js reports network failures and our request timeout as status 0.
+  if (err.status === 0 || message.includes('failed to fetch') || message.includes('network')) return 'offline'
+  if (message.includes('expired') || message.includes('token')) return 'badCode'
+  if (message.includes('invalid format') || message.includes('validate email')) return 'invalidEmail'
   return 'unknown'
 }
 

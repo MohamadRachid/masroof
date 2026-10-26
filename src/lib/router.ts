@@ -40,16 +40,34 @@ export function navigate(route: Route, { replace = false }: { replace?: boolean 
   emit()
 }
 
-/** Tabs keep history shallow: Back from any tab returns Home, Back from Home leaves. */
+export type TabNavAction = 'none' | 'push' | 'replace' | 'back'
+
+/**
+ * Keeps the stack at most [Home, current tab]: push when leaving Home, replace
+ * between tabs, pop when returning Home over an entry we pushed. So Back from
+ * any tab returns Home, and Back from Home leaves the app.
+ */
+export function tabNavAction(current: Route, target: Route, pushedByUs: boolean): TabNavAction {
+  if (current === target) return 'none'
+  if (current === 'home') return 'push'
+  if (target === 'home') return pushedByUs ? 'back' : 'replace'
+  return 'replace'
+}
+
+function pushedByUs(): boolean {
+  const state: unknown = window.history.state
+  return !!state && typeof state === 'object' && 'masroof' in state
+}
+
 export function goTab(route: Route) {
-  const current = parseHash(window.location.hash)
-  if (current === route) return
-  navigate(route, { replace: current !== 'home' })
+  const action = tabNavAction(parseHash(window.location.hash), route, pushedByUs())
+  if (action === 'push') navigate(route)
+  else if (action === 'replace') navigate(route, { replace: true })
+  else if (action === 'back') window.history.back()
 }
 
 /** Close a pushed screen (e.g. the Add sheet); falls back to Home if we didn't push it. */
 export function goBack() {
-  const state: unknown = window.history.state
-  if (state && typeof state === 'object' && 'masroof' in state) window.history.back()
+  if (pushedByUs()) window.history.back()
   else navigate('home', { replace: true })
 }

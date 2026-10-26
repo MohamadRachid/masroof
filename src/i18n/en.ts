@@ -32,7 +32,8 @@ export const en = {
   'auth.offline': 'You’re offline. Signing in needs a connection.',
   'auth.err.invalidEmail': 'That email doesn’t look right.',
   'auth.err.badCode': 'That code didn’t work. Check it, or send a new one.',
-  'auth.err.rateLimited': 'Too many tries. Wait a minute, then try again.',
+  'auth.err.rateLimited': 'Too many emails sent. Use the last code or link, or try again later.',
+  'auth.err.notAllowed': 'This email can’t sign in to Masroof.',
   'auth.err.offline': 'You’re offline. Connect to sign in.',
   'auth.err.unknown': 'Something went wrong. Try again.',
 

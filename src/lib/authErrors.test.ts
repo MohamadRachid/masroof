@@ -63,3 +63,22 @@ describe('linkErrorFromHash', () => {
     expect(linkErrorFromHash('')).toBeNull()
   })
 })
+
+describe('authErrorKey — codes win over message text', () => {
+  it('an address the project may not email is notAllowed, not invalidEmail', () => {
+    expect(
+      authErrorKey({ code: 'email_address_not_authorized', status: 400, message: 'Email address "a@b.co" cannot be used as it is not authorized' }, true),
+    ).toBe('notAllowed')
+  })
+
+  it('sign-ups disabled is notAllowed', () => {
+    expect(authErrorKey({ code: 'otp_disabled', status: 422, message: 'Signups not allowed for otp' }, true)).toBe('notAllowed')
+    expect(authErrorKey({ code: 'signup_disabled', status: 422 }, true)).toBe('notAllowed')
+  })
+})
+
+describe('authErrorKey — stalled requests', () => {
+  it('a request aborted by our timeout (supabase-js wraps it as a status-0 retryable error) reads as offline', () => {
+    expect(authErrorKey({ name: 'AuthRetryableFetchError', message: 'signal timed out', status: 0 }, true)).toBe('offline')
+  })
+})
