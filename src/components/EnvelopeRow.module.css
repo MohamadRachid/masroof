@@ -53,6 +53,9 @@
 }
 
 .meta {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s-3);
   color: var(--text-2);
   font-size: var(--fs-xs);
   font-variant-numeric: tabular-nums;

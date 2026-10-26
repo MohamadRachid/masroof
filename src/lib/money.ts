@@ -84,11 +84,26 @@ export function formatMoney(n: number): string {
 
 export type WeekStatus = 'good' | 'warn' | 'bad'
 
-/** Green under warn %, orange from warn %, red from 100 %. */
+/** Green under warn %, orange from warn %, red from 100 %. Compared in cents, so 80 % is exactly 80 %. */
 export function weeklyStatus(spent: number, limit: number, warnPct: number): WeekStatus {
-  if (limit <= 0) return spent > 0 ? 'bad' : 'good'
-  const pct = (spent / limit) * 100
-  return pct >= 100 ? 'bad' : pct >= warnPct ? 'warn' : 'good'
+  const s = toCents(spent)
+  const l = toCents(limit)
+  if (l <= 0) return s > 0 ? 'bad' : 'good'
+  return s >= l ? 'bad' : s * 100 >= warnPct * l ? 'warn' : 'good'
+}
+
+export type EnvelopeStatus = 'plain' | 'warn' | 'bad'
+
+/**
+ * Envelope colour: red only when spent goes past the plan. Day-to-day envelopes turn
+ * orange from warn %; fixed bills and savings are meant to be used up, so never orange.
+ */
+export function envelopeStatus(kind: string, spent: number, planned: number, warnPct: number): EnvelopeStatus {
+  const s = toCents(spent)
+  const p = toCents(planned)
+  if (s > p) return 'bad'
+  if (kind !== 'variable' || p <= 0) return 'plain'
+  return s * 100 >= warnPct * p ? 'warn' : 'plain'
 }
 
 type PlanEntry = {
@@ -126,7 +141,8 @@ export type PlanStats = {
   daysRemaining: number
   safeToSpend: number
   warnPct: number
-  week: { start: string; weeksRemaining: number; limit: number; spent: number; status: WeekStatus }
+  /** limit never shows below 0; hasBudget = the plan has day-to-day money at all. */
+  week: { start: string; weeksRemaining: number; limit: number; spent: number; status: WeekStatus; hasBudget: boolean }
 }
 
 /** An entry's value in GHS cents; USD counts at the entry's own frozen rate. */
@@ -165,7 +181,9 @@ export function planStats(input: PlanInput): PlanStats {
   const variablePlannedCents = variable.reduce((sum, x) => sum + toCents(x.planned), 0)
   const beforeWeekCents = outs.filter((e) => isVariable(e) && e.date < start).reduce((s, e) => s + ghsCents(e, currencyOf, fallbackRate), 0)
   const weeksRemaining = Math.max(1, Math.floor(daysBetween(start, plan.expected_end) / 7) + 1)
-  const limitCents = Math.round((variablePlannedCents - beforeWeekCents) / weeksRemaining)
+  // Overspent before this week → nothing left for it: show 0 and red, not a negative limit.
+  const limitCents = Math.max(0, Math.round((variablePlannedCents - beforeWeekCents) / weeksRemaining))
+  const hasBudget = variablePlannedCents > 0
   const weekSpentCents = outs.filter((e) => isVariable(e) && e.date >= start).reduce((s, e) => s + ghsCents(e, currencyOf, fallbackRate), 0)
 
   return {
@@ -181,7 +199,8 @@ export function planStats(input: PlanInput): PlanStats {
       weeksRemaining,
       limit: limitCents / 100,
       spent: weekSpentCents / 100,
-      status: weeklyStatus(weekSpentCents / 100, limitCents / 100, warnPct),
+      status: hasBudget && limitCents === 0 ? 'bad' : weeklyStatus(weekSpentCents / 100, limitCents / 100, warnPct),
+      hasBudget,
     },
   }
 }
@@ -197,7 +216,8 @@ export function impactOf(stats: PlanStats, add: { categoryId: string; kind: stri
   if (add.kind === 'variable') {
     const spent = round2(stats.week.spent + add.amountGhs)
     const limit = stats.week.limit
-    result.week = { spent, limit, status: weeklyStatus(spent, limit, stats.warnPct), over: Math.max(0, round2(spent - limit)) }
+    const status = stats.week.hasBudget && limit <= 0 ? 'bad' : weeklyStatus(spent, limit, stats.warnPct)
+    result.week = { spent, limit, status, over: Math.max(0, round2(spent - limit)) }
   }
   const envelope = stats.envelopes.find((x) => x.category_id === add.categoryId)
   if (envelope) result.envelope = { left: round2(envelope.left - add.amountGhs) }

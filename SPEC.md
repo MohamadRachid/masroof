@@ -140,6 +140,12 @@ Implementation notes (phase 0, migration `20261026105040_init`):
 
 Fixed envelopes (rent, bills) never count toward the weekly limit.
 
+Implementation notes (phase 3, 2026-10-26):
+- If day-to-day money was already overspent before this week started, the weekly limit shows 0 and the week is red (never a negative limit). With no day-to-day envelopes there is no weekly budget at all.
+- Thresholds are compared in cents, so 80 % is exactly 80 %.
+- Envelope colours: red only when spending goes past the planned amount. Day-to-day envelopes turn orange from warn %. Fixed bills and savings are meant to be used up, so they never turn orange.
+- "Spent this week" counts entries inside the current plan, up to today. A past plan's period ends the day before the next plan starts, so a day is never counted twice.
+
 ---
 
 ## 6. Screens
@@ -180,6 +186,7 @@ Reverse-chronological, grouped by day with a daily "out" total. Search box (note
 Current plan: salary, envelopes (editable amounts), total allocated vs. salary (must not exceed salary; unallocated shows as a warning). Planned vs. actual per envelope.
 Button: **Salary received** → see §7.
 Past plans: list; tap → read-only planned vs. actual.
+Phase 3 notes (2026-10-26): until Salary received exists (phase 4), a plan is started from the Plan screen (start = today, end = next payday, editable) without creating a salary entry. Every non-income category gets an envelope (it may be 0). For the first plan, "Suggest amounts" splits the salary by default shares (Rent 30 %, Bills 8, Data/Phone 3, Food 15, Groceries 10, Transport 8, Fun 5, Health 3, Family 5, Buffer 5, Savings 8), rounded to tens, with the remainder in Buffer. The live impact line in Add shows for new Out entries only.
 
 ### More
 - Recurring: list + add/edit (name, in/out, amount, account, category, day of month). Due items also surface on Home.
@@ -193,7 +200,7 @@ Past plans: list; tap → read-only planned vs. actual.
 **Salary received** (Plan screen, or Home nudge when `usual_payday` has passed and no plan started this month):
 1. Enter salary amount and account (default bank). Creates an `in` entry, category Salary.
 2. If a plan is open: show close summary — planned vs. actual per envelope, total over/under. Ask what to do with leftover variable money: *Move to Savings* (creates an envelope note, not a money move), *Add to next Buffer*, *Ignore*. Mark plan `closed_at`.
-3. Create the new plan: `start_date` = today, `expected_end` = next `usual_payday`, envelopes prefilled from the previous plan (or defaults on first run). User edits, saves.
+3. Create the new plan: `start_date` = today, `expected_end` = next `usual_payday` (if this month's payday is 10 days away or less, the salary counts as early and the plan runs to the following month's payday), envelopes prefilled from the previous plan (or defaults on first run). User edits, saves.
 
 **Reconcile** (per account):
 1. Shows computed balance. User types actual balance.

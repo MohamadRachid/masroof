@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { impactOf, planStats, round2, suggestEnvelopes, weeklyStatus } from './money'
+import { envelopeStatus, impactOf, planStats, round2, suggestEnvelopes, weeklyStatus } from './money'
 
 // A plan worked through by hand:
 // salary 5000 from Sun 25 Oct to Tue 24 Nov; today Wed 28 Oct; weeks start Monday.
@@ -133,5 +133,46 @@ describe('suggestEnvelopes (first plan defaults)', () => {
     const s = suggestEnvelopes(cats, 4321)
     expect(Object.values(s).reduce((a, b) => round2(a + b), 0)).toBe(4321)
     expect(s.rent).toBe(1290)
+  })
+})
+
+describe('weeklyStatus at the exact boundary (compared in cents)', () => {
+  it('80 % is orange even when floats would round it down', () => {
+    expect(weeklyStatus(16.08, 20.1, 80)).toBe('warn')
+    expect(weeklyStatus(8.1, 9, 90)).toBe('warn')
+  })
+})
+
+describe('weekly limit at or below zero', () => {
+  it('overspent before this week: the limit shows 0, the week is red, everything this week is over', () => {
+    // Day-to-day planned 1200; 1300 spent before Mon 9 Nov; payday 24 Nov.
+    const s = planStats({ ...base, entries: [e('food', 1300, '2026-11-02')], today: '2026-11-11' })
+    expect(s.week.limit).toBe(0)
+    expect(s.week.status).toBe('bad')
+    expect(s.week.hasBudget).toBe(true)
+    expect(impactOf(s, { categoryId: 'food', kind: 'variable', amountGhs: 20 }).week).toEqual({ spent: 20, limit: 0, status: 'bad', over: 20 })
+  })
+
+  it('no day-to-day envelopes: no weekly budget, and not red', () => {
+    const s = planStats({ ...base, envelopes: envelopes.filter((x) => x.category_id === 'rent'), entries: [] })
+    expect(s.week).toMatchObject({ limit: 0, status: 'good', hasBudget: false })
+  })
+})
+
+describe('envelopeStatus', () => {
+  it('fixed and savings: never orange, red only when overspent', () => {
+    expect(envelopeStatus('fixed', 1500, 1500, 80)).toBe('plain')
+    expect(envelopeStatus('fixed', 1300, 1500, 80)).toBe('plain')
+    expect(envelopeStatus('fixed', 1600, 1500, 80)).toBe('bad')
+    expect(envelopeStatus('savings', 500, 500, 80)).toBe('plain')
+  })
+
+  it('day-to-day: orange from warn %, red only past the planned amount', () => {
+    expect(envelopeStatus('variable', 79, 100, 80)).toBe('plain')
+    expect(envelopeStatus('variable', 80, 100, 80)).toBe('warn')
+    expect(envelopeStatus('variable', 100, 100, 80)).toBe('warn')
+    expect(envelopeStatus('variable', 100.01, 100, 80)).toBe('bad')
+    expect(envelopeStatus('variable', 5, 0, 80)).toBe('bad')
+    expect(envelopeStatus('variable', 0, 0, 80)).toBe('plain')
   })
 })

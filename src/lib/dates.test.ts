@@ -41,9 +41,15 @@ describe('plan dates', () => {
 
   it('nextPayday is the next occurrence after today, clamped to short months', () => {
     expect(nextPayday('2026-10-26', 25)).toBe('2026-11-25')
-    expect(nextPayday('2026-10-26', 28)).toBe('2026-10-28')
     expect(nextPayday('2026-10-25', 25)).toBe('2026-11-25') // salary day itself → next month
+    expect(nextPayday('2026-10-14', 25)).toBe('2026-10-25') // 11 days away: this month
     expect(nextPayday('2027-01-31', 31)).toBe('2027-02-28')
     expect(nextPayday('2026-12-26', 25)).toBe('2027-01-25')
+  })
+
+  it('salary that arrives up to 10 days early runs to next month’s payday', () => {
+    expect(nextPayday('2026-10-23', 25)).toBe('2026-11-25') // paid Friday before a Sunday payday
+    expect(nextPayday('2026-10-15', 25)).toBe('2026-11-25') // exactly 10 days early
+    expect(nextPayday('2026-10-26', 28)).toBe('2026-11-28')
   })
 })

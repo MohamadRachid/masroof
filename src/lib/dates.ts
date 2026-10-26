@@ -50,11 +50,15 @@ export function weekStartOf(iso: string, weekStart: number): string {
 
 const daysInMonth = (y: number, m: number) => new Date(y, m, 0).getDate() // m is 1-based
 
-/** The next usual payday after today (today itself counts as already paid), clamped to short months. */
+// Salary often lands a few days early (weekends, holidays). If this month's payday is this close,
+// the salary just received is that payday's, so the plan runs to the following one.
+const EARLY_SALARY_DAYS = 10
+
+/** The payday this plan runs to: the next usual payday, skipping one that's 10 days away or less. */
 export function nextPayday(todayIso: string, payday: number): string {
   const [y = 1970, m = 1, d = 1] = todayIso.split('-').map(Number)
   const day = (yy: number, mm: number) => Math.min(payday, daysInMonth(yy, mm))
-  if (d < day(y, m)) return `${y}-${pad(m)}-${pad(day(y, m))}`
+  if (day(y, m) - d > EARLY_SALARY_DAYS) return `${y}-${pad(m)}-${pad(day(y, m))}`
   const ny = m === 12 ? y + 1 : y
   const nm = m === 12 ? 1 : m + 1
   return `${ny}-${pad(nm)}-${pad(day(ny, nm))}`

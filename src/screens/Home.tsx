@@ -45,7 +45,7 @@ export default function Home({ onOpenEntry }: { onOpenEntry: (entry: Entry) => v
             <Money value={current.stats.safeToSpend} currency="GHS" size="xl" />
           </span>
           <Equivalent amount={current.stats.safeToSpend} currency="GHS" rate={rate} />
-          {current.stats.week.limit > 0 || current.stats.week.spent > 0 ? (
+          {current.stats.week.hasBudget ? (
             <div className={styles.week}>
               <div className={styles.weekRow}>
                 <span>{t('home.week')}</span>
@@ -77,7 +77,7 @@ export default function Home({ onOpenEntry }: { onOpenEntry: (entry: Entry) => v
       </section>
 
       {current ? (
-        <EnvelopesPreview stats={current.stats} warnPct={settings?.warn_pct ?? 80} />
+        <EnvelopesPreview stats={current.stats} warnPct={settings?.warn_pct ?? 80} rate={rate} />
       ) : (
         <button type="button" className={styles.planCard} onClick={() => goTab('plan')}>
           <span className={styles.planIcon}>
@@ -145,7 +145,7 @@ function useStatusGlow(status: WeekStatus | null) {
 }
 
 /** Envelopes for the open plan, day-to-day first; tap through to the Plan tab. */
-function EnvelopesPreview({ stats, warnPct }: { stats: PlanStats; warnPct: number }) {
+function EnvelopesPreview({ stats, warnPct, rate }: { stats: PlanStats; warnPct: number; rate: number | null }) {
   const { t } = useI18n()
   const categories = useCategories() ?? []
   const order = { variable: 0, fixed: 1, savings: 2 } as Record<string, number>
@@ -161,7 +161,7 @@ function EnvelopesPreview({ stats, warnPct }: { stats: PlanStats; warnPct: numbe
       </div>
       <button type="button" className={styles.envelopes} onClick={() => goTab('plan')}>
         {list.map((e) => (
-          <EnvelopeRow key={e.category_id} stat={e} category={categories.find((c) => c.id === e.category_id)} warnPct={warnPct} />
+          <EnvelopeRow key={e.category_id} stat={e} category={categories.find((c) => c.id === e.category_id)} warnPct={warnPct} rate={rate} />
         ))}
       </button>
     </section>

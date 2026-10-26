@@ -77,7 +77,9 @@ function PlanForm({
   const allValid = Object.values(parsed).every((v) => v !== null)
   const assignedCents = Object.values(parsed).reduce<number>((sum, v) => sum + toCents(v ?? 0), 0)
   const remainingCents = salary !== null ? toCents(salary) - assignedCents : 0
-  const canSave = salary !== null && allValid && remainingCents >= 0 && ends >= today && !busy
+  // A new plan ends in the future; an open plan stays editable after payday (until Salary received closes it).
+  const minEnd = existing ? existing.plan.start_date : today
+  const canSave = salary !== null && allValid && remainingCents >= 0 && ends >= minEnd && !busy
 
   function suggest() {
     if (salary === null) return
@@ -120,7 +122,7 @@ function PlanForm({
         </label>
         <label className={styles.ends}>
           <span className={styles.label}>{t('planEditor.ends')}</span>
-          <input type="date" value={ends} min={today} onChange={(e) => e.target.value && setEnds(e.target.value)} />
+          <input type="date" value={ends} min={minEnd} onChange={(e) => e.target.value && setEnds(e.target.value)} />
         </label>
       </div>
 

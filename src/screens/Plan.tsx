@@ -3,7 +3,7 @@ import { Button } from '../components/Button'
 import { EmptyState } from '../components/EmptyState'
 import { EnvelopeRow } from '../components/EnvelopeRow'
 import { Icon } from '../components/Icon'
-import { Money } from '../components/Money'
+import { Equivalent, Money } from '../components/Money'
 import { PlanEditor } from '../components/PlanEditor'
 import { Screen } from '../components/Screen'
 import { Sheet } from '../components/Sheet'
@@ -18,7 +18,7 @@ import styles from './Plan.module.css'
 
 const KINDS = ['variable', 'fixed', 'savings'] as const
 
-function EnvelopeGroups({ stats, categories, warnPct }: { stats: EnvelopeStat[]; categories: Category[]; warnPct: number }) {
+function EnvelopeGroups({ stats, categories, warnPct, rate }: { stats: EnvelopeStat[]; categories: Category[]; warnPct: number; rate: number | null }) {
   const { t } = useI18n()
   const catById = new Map(categories.map((c) => [c.id, c]))
   return (
@@ -33,7 +33,7 @@ function EnvelopeGroups({ stats, categories, warnPct }: { stats: EnvelopeStat[];
             <h2 className={styles.groupTitle}>{t(`plan.kind.${kind}`)}</h2>
             <div className={styles.list}>
               {list.map((s) => (
-                <EnvelopeRow key={s.category_id} stat={s} category={catById.get(s.category_id)} warnPct={warnPct} />
+                <EnvelopeRow key={s.category_id} stat={s} category={catById.get(s.category_id)} warnPct={warnPct} rate={rate} />
               ))}
             </div>
           </section>
@@ -49,6 +49,7 @@ export default function Plan() {
   const plans = usePlans()
   const categories = useCategories()
   const settings = useSettings()
+  const rate = useDisplayRate()
   const [editing, setEditing] = useState(false)
   const [past, setPast] = useState<PlanRow | null>(null)
 
@@ -70,11 +71,17 @@ export default function Plan() {
           <section className={styles.summary}>
             <div className={styles.summaryRow}>
               <span className={styles.summaryLabel}>{t('plan.salary')}</span>
-              <Money value={current.snapshot.plan.salary} currency="GHS" size="lg" />
+              <span className={styles.summaryValue}>
+                <Money value={current.snapshot.plan.salary} currency="GHS" size="lg" />
+                <Equivalent amount={current.snapshot.plan.salary} currency="GHS" rate={rate} />
+              </span>
             </div>
             <div className={styles.summaryRow}>
               <span className={styles.summaryLabel}>{t('plan.allocated')}</span>
-              <Money value={current.stats.allocated} currency="GHS" />
+              <span className={styles.summaryValue}>
+                <Money value={current.stats.allocated} currency="GHS" />
+                <Equivalent amount={current.stats.allocated} currency="GHS" rate={rate} />
+              </span>
             </div>
             {current.stats.unallocated !== 0 && (
               <p className={styles.warning} data-status={current.stats.unallocated < 0 ? 'bad' : 'warn'}>
@@ -86,7 +93,7 @@ export default function Plan() {
             )}
             <Button onClick={() => setEditing(true)}>{t('plan.edit')}</Button>
           </section>
-          <EnvelopeGroups stats={current.stats.envelopes} categories={categories} warnPct={warnPct} />
+          <EnvelopeGroups stats={current.stats.envelopes} categories={categories} warnPct={warnPct} rate={rate} />
         </>
       ) : (
         <>
@@ -148,7 +155,7 @@ function PastPlanSheet({ plan, plans, onClose }: { plan: PlanRow | null; plans: 
       currencyOf: (id) => accounts.find((a) => a.id === id)?.currency ?? 'GHS',
       fallbackRate: rate,
     })
-    body = <EnvelopeGroups stats={stats.envelopes} categories={categories} warnPct={settings?.warn_pct ?? 80} />
+    body = <EnvelopeGroups stats={stats.envelopes} categories={categories} warnPct={settings?.warn_pct ?? 80} rate={rate} />
   }
 
   return (
