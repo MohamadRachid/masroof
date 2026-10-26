@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { initialSessionState, nextSessionState, type SessionState } from './sessionState'
 
-const stored = JSON.stringify({ access_token: 'a', refresh_token: 'r', user: { email: 'ali@example.com' } })
-const signedIn: SessionState = { status: 'signedIn', email: 'ali@example.com' }
-const signedOut: SessionState = { status: 'signedOut', email: null }
-const loading: SessionState = { status: 'loading', email: null }
+const stored = JSON.stringify({ access_token: 'a', refresh_token: 'r', user: { id: 'u1', email: 'ali@example.com' } })
+const signedIn: SessionState = { status: 'signedIn', email: 'ali@example.com', userId: 'u1' }
+const signedOut: SessionState = { status: 'signedOut', email: null, userId: null }
+const loading: SessionState = { status: 'loading', email: null, userId: null }
 
 describe('initialSessionState', () => {
   it('starts signed in from a stored session, without waiting for the network', () => {
@@ -23,7 +23,7 @@ describe('initialSessionState', () => {
 
 describe('nextSessionState', () => {
   it('a session from Supabase means signed in', () => {
-    expect(nextSessionState(signedOut, 'SIGNED_IN', { user: { email: 'ali@example.com' } }, stored)).toEqual(signedIn)
+    expect(nextSessionState(signedOut, 'SIGNED_IN', { user: { id: 'u1', email: 'ali@example.com' } }, stored)).toEqual(signedIn)
   })
 
   it('stays signed in when the start-up refresh fails offline (null INITIAL_SESSION, session still stored)', () => {

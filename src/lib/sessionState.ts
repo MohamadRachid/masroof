@@ -1,29 +1,37 @@
 export type SessionState = {
   status: 'loading' | 'signedOut' | 'signedIn'
   email: string | null
+  userId: string | null
 }
 
-const SIGNED_OUT: SessionState = { status: 'signedOut', email: null }
+const SIGNED_OUT: SessionState = { status: 'signedOut', email: null, userId: null }
 
-/** The session supabase-js keeps in localStorage, if it holds a usable refresh token. */
-function readStored(raw: string | null): { email: string | null } | null {
+type StoredUser = { userId: string; email: string | null }
+
+/** The session supabase-js keeps in localStorage, if it holds a refresh token and a user. */
+function readStored(raw: string | null): StoredUser | null {
   if (!raw) return null
   try {
     const parsed: unknown = JSON.parse(raw)
-    if (!parsed || typeof parsed !== 'object' || !('refresh_token' in parsed)) return null
+    if (!parsed || typeof parsed !== 'object' || !('refresh_token' in parsed) || !('user' in parsed)) return null
     if (typeof parsed.refresh_token !== 'string' || !parsed.refresh_token) return null
-    const user = 'user' in parsed ? parsed.user : null
-    const email = user && typeof user === 'object' && 'email' in user && typeof user.email === 'string' ? user.email : null
-    return { email }
+    const user = parsed.user
+    if (!user || typeof user !== 'object' || !('id' in user) || typeof user.id !== 'string') return null
+    const email = 'email' in user && typeof user.email === 'string' ? user.email : null
+    return { userId: user.id, email }
   } catch {
     return null
   }
 }
 
+function signedInAs(user: StoredUser): SessionState {
+  return { status: 'signedIn', email: user.email, userId: user.userId }
+}
+
 /** Decide the first screen without the network: a stored session opens the app straight away, offline too. */
 export function initialSessionState(storedRaw: string | null): SessionState {
   const stored = readStored(storedRaw)
-  return stored ? { status: 'signedIn', email: stored.email } : SIGNED_OUT
+  return stored ? signedInAs(stored) : SIGNED_OUT
 }
 
 /**
@@ -34,12 +42,12 @@ export function initialSessionState(storedRaw: string | null): SessionState {
 export function nextSessionState(
   prev: SessionState,
   event: string,
-  session: { user: { email?: string | null } } | null,
+  session: { user: { id: string; email?: string | null } } | null,
   storedRaw: string | null,
 ): SessionState {
-  if (session) return { status: 'signedIn', email: session.user.email ?? null }
+  if (session) return { status: 'signedIn', email: session.user.email ?? null, userId: session.user.id }
   if (event === 'SIGNED_OUT') return SIGNED_OUT
   const stored = readStored(storedRaw)
-  if (stored) return prev.status === 'signedIn' ? prev : { status: 'signedIn', email: stored.email }
+  if (stored) return prev.status === 'signedIn' ? prev : signedInAs(stored)
   return SIGNED_OUT
 }
