@@ -1,0 +1,12 @@
+node_modules
+dist
+dev-dist
+*.log
+.env*
+!.env.example
+.superpowers/
+.playwright-mcp/
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea

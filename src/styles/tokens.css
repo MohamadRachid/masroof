@@ -1,0 +1,80 @@
+/* Design tokens. Colour means something: the UI is warm monochrome,
+   colour appears only for status (good / warn / bad) and money in. */
+:root {
+  /* Surfaces */
+  --bg: #0e0d0b;
+  --surface-1: #171613;
+  --surface-2: #201e1a;
+  --surface-3: #2a2722;
+  --line: rgb(237 232 223 / 0.08);
+  --line-strong: rgb(237 232 223 / 0.14);
+  --scrim: rgb(5 5 4 / 0.62);
+
+  /* Text */
+  --text: #ede8df;
+  --text-2: #a39d92;
+  --text-3: #6f6a61; /* disabled / decorative only — below 4.5:1 */
+
+  /* Meaning */
+  --good: #5bc489;
+  --warn: #f0a04b;
+  --bad: #ef6a5b;
+  --good-soft: rgb(91 196 137 / 0.14);
+  --warn-soft: rgb(240 160 75 / 0.14);
+  --bad-soft: rgb(239 106 91 / 0.14);
+
+  /* The one primary action per screen */
+  --primary: #ede8df;
+  --on-primary: #0e0d0b;
+
+  /* Type */
+  --font-ui: 'Readex Pro Variable', 'Segoe UI', system-ui, sans-serif;
+  --font-num: 'Instrument Serif', Georgia, serif;
+  --fs-xs: 0.75rem;   /* 12 */
+  --fs-sm: 0.875rem;  /* 14 */
+  --fs-md: 1rem;      /* 16 */
+  --fs-lg: 1.125rem;  /* 18 */
+  --fs-xl: 1.375rem;  /* 22 */
+  --fs-2xl: 1.75rem;  /* 28 */
+  --fs-3xl: 2.5rem;   /* 40 */
+  --fs-4xl: 3.5rem;   /* 56 */
+
+  /* Space (4px grid) */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+  --s-8: 32px;
+  --s-10: 40px;
+  --s-12: 48px;
+  --gutter: 16px;
+
+  /* Shape */
+  --r-1: 10px;
+  --r-2: 14px;
+  --r-3: 20px;
+  --r-4: 28px;
+  --r-full: 999px;
+  --tap: 44px;
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --dur-1: 120ms;
+  --dur-2: 200ms;
+  --dur-3: 280ms;
+
+  /* Chrome */
+  --header-h: 56px;
+  --tabbar-h: 64px;
+  --rail-w: 248px;
+  --content-max: 720px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+
+  /* Ambient glow at the top of the page; later phases tint it by weekly status. */
+  --glow: rgb(237 232 223 / 0.05);
+}
