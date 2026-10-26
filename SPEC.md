@@ -103,6 +103,12 @@ Default categories (seeded on first run):
 | Salary    | income   |
 | Other     | variable |
 
+Implementation notes (phase 0, migration `20261026105040_init`):
+- `rates` is global reference data (one row per day, written by the cron with the service role), so it has no `user_id`. Signed-in users can only read it.
+- RLS allows select / insert / update on own rows only. There is no delete policy, so the database enforces soft delete.
+- Default categories (with Arabic names and icon keys) and the `settings` row are seeded by a trigger on `auth.users` at signup, not by the client. Two devices can never double-seed.
+- Stricter than the sketch above: `entries.date/type/account_id/category_id/amount/rate_usd_ghs` are NOT NULL, `plans.salary` is NOT NULL (≥ 0), `expected_end ≥ start_date`, and there is one live envelope per (plan, category). `accounts.kind` stays unconstrained so new kinds (e.g. MoMo) need no migration.
+
 ---
 
 ## 5. Core math (single source of truth, pure functions in `src/lib/money.ts`, unit-tested)
