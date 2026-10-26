@@ -14,9 +14,7 @@ export const supabase = createClient<Database>(
     auth: {
       persistSession: true,
       autoRefreshToken: true,
-      detectSessionInUrl: true,
-      // Implicit flow: the email link works in whichever browser opens it.
-      flowType: 'implicit',
+      detectSessionInUrl: false,
       storageKey: AUTH_STORAGE_KEY,
     },
   },

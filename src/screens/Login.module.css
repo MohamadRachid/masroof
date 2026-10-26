@@ -19,7 +19,7 @@
   width: 100%;
   max-width: 400px;
   margin-inline: auto;
-  padding-block-end: 6vh;
+  padding-block-end: 4vh;
 }
 
 /* First paint only: brand then form rise in. */
@@ -84,6 +84,7 @@
 }
 
 .label {
+  margin-block-start: var(--s-1);
   color: var(--text-2);
   font-size: var(--fs-sm);
 }
@@ -93,11 +94,11 @@
   align-items: center;
   gap: var(--s-3);
   height: 58px;
-  padding-inline: var(--s-4);
+  padding-inline: var(--s-4) var(--s-1);
   border-radius: var(--r-2);
   background: var(--surface-1);
   box-shadow: inset 0 0 0 1px var(--line-strong);
-  color: var(--text-3);
+  color: var(--text-2);
   transition:
     box-shadow var(--dur-2) ease,
     color var(--dur-2) ease;
@@ -118,6 +119,7 @@
   height: 100%;
   border: 0;
   background: none;
+  color: var(--text);
   font-size: var(--fs-lg);
 }
 
@@ -125,16 +127,46 @@
   color: var(--text-3);
 }
 
-/* Emails stay LTR but sit at the start edge in Arabic. */
+/* The field draws the focus ring; the input inside doesn't need its own. */
+.input:focus-visible {
+  outline: none;
+}
+
+/* Email and password stay LTR but sit at the start edge in Arabic. */
 :global([dir='rtl']) .input {
   text-align: right;
+}
+
+.reveal {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--tap);
+  height: var(--tap);
+  border-radius: var(--r-1);
+  color: var(--text-2);
+  transition:
+    color var(--dur-2) ease,
+    transform 160ms var(--ease-out);
+}
+
+.reveal:active {
+  transform: scale(0.92);
+}
+
+.reveal[aria-pressed='true'] {
+  color: var(--text);
+}
+
+.hint {
+  color: var(--text-2);
+  font-size: var(--fs-sm);
 }
 
 .error {
   display: flex;
   align-items: center;
   gap: var(--s-2);
-  margin-block-start: calc(var(--s-1) * -1);
   color: var(--bad);
   font-size: var(--fs-sm);
 }
@@ -144,157 +176,25 @@
 }
 
 .form > button[type='submit'] {
-  margin-block-start: var(--s-2);
-}
-
-.title {
-  font-size: var(--fs-2xl);
-}
-
-.body {
-  color: var(--text-2);
-}
-
-.body strong {
-  color: var(--text);
-  font-weight: 500;
-  display: inline-block;
-  max-width: 100%;
-  overflow-wrap: break-word;
-}
-
-/* One real input over six drawn cells: paste, autofill and the
-   numeric keypad all work, the cells are just paint. */
-.codeWrap {
-  position: relative;
   margin-block-start: var(--s-3);
 }
 
-.codeInput {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  width: 100%;
-  height: 100%;
-  border: 0;
-  background: transparent;
-  color: transparent;
-  caret-color: transparent;
-  font-size: 16px;
-}
-
-.codeInput::selection {
-  background: transparent;
-}
-
-.cells {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: var(--s-2);
-  transition: opacity var(--dur-2) ease;
-}
-
-.cells[data-busy] {
-  opacity: 0.5;
-}
-
-.cell {
-  position: relative;
-  display: grid;
-  place-items: center;
-  height: 64px;
-  border-radius: var(--r-2);
-  background: var(--surface-1);
-  box-shadow: inset 0 0 0 1px var(--line-strong);
-  font-family: var(--font-num);
-  font-size: 2.125rem;
-  line-height: 1;
-  transition:
-    box-shadow var(--dur-1) ease,
-    background-color var(--dur-1) ease;
-}
-
-.cell[data-filled] {
-  background: var(--surface-2);
-}
-
-.cell[data-active] {
-  box-shadow: inset 0 0 0 1.5px var(--text);
-}
-
-.cell[data-active]:empty::after {
-  content: '';
-  width: 1.5px;
-  height: 28px;
-  background: var(--text);
-  animation: blink 1.1s steps(1) infinite;
-}
-
-.cell[data-invalid='true'] {
-  box-shadow: inset 0 0 0 1.5px var(--bad);
-}
-
-@keyframes blink {
-  50% {
-    opacity: 0;
-  }
-}
-
-.hint {
-  min-height: 1.5em;
+.switch {
+  align-self: center;
+  min-height: var(--tap);
+  padding-inline: var(--s-3);
   color: var(--text-2);
   font-size: var(--fs-sm);
-}
-
-.hint[data-tone='bad'] {
-  color: var(--bad);
-}
-
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: var(--s-2) var(--s-4);
-}
-
-.link {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: var(--tap);
-  color: var(--text);
-  font-size: var(--fs-sm);
-  font-weight: 450;
   transition: color var(--dur-2) ease;
 }
 
-.link:disabled {
-  color: var(--text-3);
-}
-
-.link:active:not(:disabled) {
+.switch:active {
   transform: scale(0.97);
 }
 
-/* The field draws the focus ring; the input inside doesn't need its own. */
-.input:focus-visible,
-.codeInput:focus-visible {
-  outline: none;
-}
-
-/* On the code step the keypad is up: keep the brand small so the cells stay visible. */
-.brand[data-compact] {
-  flex-direction: row;
-  align-items: center;
-}
-
-.brand[data-compact] .mark {
-  width: 44px;
-  height: 44px;
-  margin: 0;
-  border-radius: var(--r-2);
-}
-
-.brand[data-compact] .tagline {
-  display: none;
+@media (hover: hover) and (pointer: fine) {
+  .switch:hover,
+  .reveal:hover {
+    color: var(--text);
+  }
 }

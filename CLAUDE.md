@@ -64,7 +64,8 @@ SPEC.md  CLAUDE.md  PROGRESS.md
 - After `apply_migration` via MCP: rename the local file to the version from `list_migrations`, regenerate `src/lib/database.types.ts`, run `get_advisors`.
 - RLS: select/insert/update own rows; no delete policy (soft delete is enforced by the DB). `rates` is global, read-only to users. New users get categories + settings from trigger `private.handle_new_user`.
 - Test RLS with a rollback-only `do $$ … raise exception 'RESULT …' $$` block: fake `auth.users` rows, `set local role authenticated`, `request.jwt.claims`.
-- Auth dashboard settings (site URL, redirect URLs, email template, disabling signups) can't be set via MCP; ask Ali.
+- Sign-in is email + password (`src/lib/auth.ts` signIn/signUp). "Confirm email" must stay off; sign-ups off after the owner exists. Built-in mailer can't edit templates (needs custom SMTP) and sends 2 emails/hour, so never build email-based flows.
+- Auth dashboard settings can't be set via MCP; ask Ali. Deleting auth users via MCP needs his explicit OK at the prompt.
 
 ## Commands
 ```

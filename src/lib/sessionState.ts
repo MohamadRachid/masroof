@@ -20,15 +20,10 @@ function readStored(raw: string | null): { email: string | null } | null {
   }
 }
 
-/**
- * Decide the first screen without the network: a stored session opens the app
- * straight away (offline too); only a magic-link return waits for Supabase.
- */
-export function initialSessionState(storedRaw: string | null, hash: string): SessionState {
+/** Decide the first screen without the network: a stored session opens the app straight away, offline too. */
+export function initialSessionState(storedRaw: string | null): SessionState {
   const stored = readStored(storedRaw)
-  if (stored) return { status: 'signedIn', email: stored.email }
-  if (/access_token=/.test(hash)) return { status: 'loading', email: null }
-  return SIGNED_OUT
+  return stored ? { status: 'signedIn', email: stored.email } : SIGNED_OUT
 }
 
 /**

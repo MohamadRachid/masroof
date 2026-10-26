@@ -1,14 +1,27 @@
-export type AuthErrorKey = 'invalidEmail' | 'badCode' | 'rateLimited' | 'notAllowed' | 'offline' | 'unknown'
+export type AuthErrorKey =
+  | 'invalidEmail'
+  | 'wrongPassword'
+  | 'exists'
+  | 'weakPassword'
+  | 'notConfirmed'
+  | 'rateLimited'
+  | 'notAllowed'
+  | 'offline'
+  | 'unknown'
 
 type AuthErrorLike = { status?: number; code?: string; message?: string; name?: string } | null
 
 const BY_CODE: Record<string, AuthErrorKey> = {
-  email_address_not_authorized: 'notAllowed',
-  otp_disabled: 'notAllowed',
+  invalid_credentials: 'wrongPassword',
+  user_already_exists: 'exists',
+  email_exists: 'exists',
+  weak_password: 'weakPassword',
+  email_not_confirmed: 'notConfirmed',
   signup_disabled: 'notAllowed',
-  over_email_send_rate_limit: 'rateLimited',
+  email_provider_disabled: 'notAllowed',
+  email_address_not_authorized: 'notAllowed',
   over_request_rate_limit: 'rateLimited',
-  otp_expired: 'badCode',
+  over_email_send_rate_limit: 'rateLimited',
   email_address_invalid: 'invalidEmail',
 }
 
@@ -24,17 +37,8 @@ export function authErrorKey(err: AuthErrorLike, online: boolean): AuthErrorKey 
   const message = (err.message ?? '').toLowerCase()
   // supabase-js reports network failures and our request timeout as status 0.
   if (err.status === 0 || message.includes('failed to fetch') || message.includes('network')) return 'offline'
-  if (message.includes('expired') || message.includes('token')) return 'badCode'
   if (message.includes('invalid format') || message.includes('validate email')) return 'invalidEmail'
   return 'unknown'
-}
-
-/** Supabase redirects a failed magic link to `#error=…&error_code=…`. */
-export function linkErrorFromHash(hash: string): AuthErrorKey | null {
-  if (!hash.startsWith('#') || hash.startsWith('#/')) return null
-  const params = new URLSearchParams(hash.slice(1))
-  if (!params.has('error') && !params.has('error_code')) return null
-  return params.get('error_code') === 'otp_expired' ? 'badCode' : 'unknown'
 }
 
 export function looksLikeEmail(value: string): boolean {

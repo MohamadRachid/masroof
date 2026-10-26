@@ -21,7 +21,7 @@ This file is the contract. Claude Code builds from it, in the order in §10. Any
 
 - **Frontend:** React 18 + Vite + TypeScript, PWA (`vite-plugin-pwa`), mobile-first, dark theme default, installable on Android Chrome and desktop Chrome.
 - **Backend:** Supabase (Postgres, Auth, Edge Functions, cron). One project, one user.
-- **Auth:** email OTP (magic link). After the owner signs up once, sign-ups are disabled (Supabase dashboard → Auth → disable new users). RLS on every table: `user_id = auth.uid()`.
+- **Auth:** email + password, typed once per device (changed 2026-10-26 from email OTP: one user, no emails needed). Supabase "Confirm email" is off; after the owner creates the account, sign-ups are disabled (Supabase dashboard → Auth → disable new users). RLS on every table: `user_id = auth.uid()`.
 - **Local cache / offline:** Dexie (IndexedDB) mirror of all tables + outbox queue. See §8.
 - **i18n:** EN + AR, switchable, RTL for AR. Latin digits in both.
 - **Hosting:** GitHub repo, deployed to Vercel or Netlify (free, HTTPS, auto-deploy from `main`). GitHub Pages also fine.
@@ -145,7 +145,7 @@ Fixed envelopes (rent, bills) never count toward the weekly limit.
 ## 6. Screens
 
 ### Login
-Email → OTP link. Once logged in, session persists; never asks again unless signed out.
+Email + password (with show/hide). "Create account" is used once, the first time. Once logged in, session persists; never asks again unless signed out. Offline with a stored session, the app opens straight away.
 
 ### First run (once)
 Language → opening balance for bank, cash, usd → usual payday → done. No plan yet; Home shows balances and a "Set up your first salary plan" card.
@@ -231,7 +231,7 @@ Past plans: list; tap → read-only planned vs. actual.
 
 Each phase ends with the app runnable on the phone via the deployed URL. Do not start the next phase until the current one is used for a day.
 
-0. **Skeleton.** Repo, Vite + React + TS, PWA plugin, routing, dark theme, i18n scaffold (EN/AR, RTL). Supabase project, schema migration from §4, RLS, email OTP login, seed categories on first login. Deploy.
+0. **Skeleton.** Repo, Vite + React + TS, PWA plugin, routing, dark theme, i18n scaffold (EN/AR, RTL). Supabase project, schema migration from §4, RLS, email + password login, seed categories on first login. Deploy.
 1. **Ledger.** Accounts, entries, balances, Add sheet (amount/toggle/account/category/note/date), History with search/filter, edit/delete, Undo toast, quick tiles. Unit tests for `money.ts`.
 2. **FX display.** Rates table, cron edge function, manual mode, frozen rate per entry, equivalents everywhere, footer rate line.
 3. **Plan.** Plans + envelopes, Plan screen, Safe-to-spend, weekly limit, live impact line in Add, envelope list on Home.

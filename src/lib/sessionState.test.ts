@@ -8,21 +8,16 @@ const loading: SessionState = { status: 'loading', email: null }
 
 describe('initialSessionState', () => {
   it('starts signed in from a stored session, without waiting for the network', () => {
-    expect(initialSessionState(stored, '#/home')).toEqual(signedIn)
-  })
-
-  it('waits for Supabase when returning from a magic link', () => {
-    expect(initialSessionState(null, '#access_token=abc&refresh_token=def&type=magiclink')).toEqual(loading)
+    expect(initialSessionState(stored)).toEqual(signedIn)
   })
 
   it('is signed out when nothing is stored', () => {
-    expect(initialSessionState(null, '#/home')).toEqual(signedOut)
-    expect(initialSessionState(null, '')).toEqual(signedOut)
+    expect(initialSessionState(null)).toEqual(signedOut)
   })
 
   it('ignores corrupt or incomplete storage', () => {
-    expect(initialSessionState('{oops', '')).toEqual(signedOut)
-    expect(initialSessionState(JSON.stringify({ access_token: 'a' }), '')).toEqual(signedOut)
+    expect(initialSessionState('{oops')).toEqual(signedOut)
+    expect(initialSessionState(JSON.stringify({ access_token: 'a' }))).toEqual(signedOut)
   })
 })
 

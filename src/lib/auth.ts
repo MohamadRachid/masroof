@@ -5,8 +5,7 @@ import { AUTH_STORAGE_KEY, supabase } from './supabase'
 
 export type { SessionState }
 
-export const OTP_LENGTH = 6
-export const RESEND_SECONDS = 60
+export const MIN_PASSWORD = 6
 
 export type AuthResult = { ok: true } | { ok: false; error: AuthErrorKey }
 
@@ -18,23 +17,12 @@ function readStoredSession(): string | null {
   }
 }
 
-/** Drop `#access_token=…` / `#error=…` once Supabase has read it. */
-function cleanAuthHash() {
-  const { hash, pathname, search } = window.location
-  if (hash && !hash.startsWith('#/') && /access_token|error/.test(hash)) {
-    window.history.replaceState(null, '', `${pathname}${search}#/home`)
-  }
-}
-
 export function useSession(): SessionState {
   // Open from the stored session at once (offline too); never wait on a token refresh.
-  const [state, setState] = useState<SessionState>(() =>
-    initialSessionState(readStoredSession(), window.location.hash),
-  )
+  const [state, setState] = useState<SessionState>(() => initialSessionState(readStoredSession()))
 
   useEffect(() => {
     const { data } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN') cleanAuthHash()
       setState((prev) => nextSessionState(prev, event, session, readStoredSession()))
     })
     return () => data.subscription.unsubscribe()
@@ -43,26 +31,25 @@ export function useSession(): SessionState {
   return state
 }
 
-function fail(error: { status?: number; code?: string; message?: string } | null): AuthResult {
+function fail(error: { status?: number; code?: string; message?: string; name?: string } | null): AuthResult {
   return { ok: false, error: authErrorKey(error, navigator.onLine) }
 }
 
-export async function sendCode(email: string): Promise<AuthResult> {
+export async function signIn(email: string, password: string): Promise<AuthResult> {
   try {
-    const { error } = await supabase.auth.signInWithOtp({
-      email: email.trim(),
-      options: { emailRedirectTo: window.location.origin + import.meta.env.BASE_URL },
-    })
+    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
     return error ? fail(error) : { ok: true }
   } catch (err) {
     return fail(err instanceof Error ? err : null)
   }
 }
 
-export async function verifyCode(email: string, code: string): Promise<AuthResult> {
+/** One-time account creation. Needs "Confirm email" off in Supabase, otherwise no session comes back. */
+export async function signUp(email: string, password: string): Promise<AuthResult> {
   try {
-    const { error } = await supabase.auth.verifyOtp({ email: email.trim(), token: code, type: 'email' })
-    return error ? fail(error) : { ok: true }
+    const { data, error } = await supabase.auth.signUp({ email: email.trim(), password })
+    if (error) return fail(error)
+    return data.session ? { ok: true } : { ok: false, error: 'notConfirmed' }
   } catch (err) {
     return fail(err instanceof Error ? err : null)
   }

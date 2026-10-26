@@ -1,16 +1,33 @@
 import { describe, expect, it } from 'vitest'
-import { authErrorKey, linkErrorFromHash, looksLikeEmail } from './authErrors'
+import { authErrorKey, looksLikeEmail } from './authErrors'
 
-describe('authErrorKey', () => {
-  it('maps rate limits by status or code', () => {
-    expect(authErrorKey({ status: 429 }, true)).toBe('rateLimited')
-    expect(authErrorKey({ code: 'over_email_send_rate_limit' }, true)).toBe('rateLimited')
-    expect(authErrorKey({ code: 'over_request_rate_limit', status: 400 }, true)).toBe('rateLimited')
+describe('authErrorKey — password sign-in', () => {
+  it('wrong email or password', () => {
+    expect(authErrorKey({ code: 'invalid_credentials', status: 400, message: 'Invalid login credentials' }, true)).toBe('wrongPassword')
   })
 
-  it('maps expired or wrong codes to badCode', () => {
-    expect(authErrorKey({ code: 'otp_expired', status: 403 }, true)).toBe('badCode')
-    expect(authErrorKey({ status: 403, message: 'Token has expired or is invalid' }, true)).toBe('badCode')
+  it('creating an account that already exists', () => {
+    expect(authErrorKey({ code: 'user_already_exists', status: 422 }, true)).toBe('exists')
+    expect(authErrorKey({ code: 'email_exists', status: 422 }, true)).toBe('exists')
+  })
+
+  it('password too short', () => {
+    expect(authErrorKey({ code: 'weak_password', status: 422, message: 'Password should be at least 6 characters.' }, true)).toBe('weakPassword')
+  })
+
+  it('Supabase still requires email confirmation', () => {
+    expect(authErrorKey({ code: 'email_not_confirmed', status: 400 }, true)).toBe('notConfirmed')
+  })
+
+  it('sign-ups turned off', () => {
+    expect(authErrorKey({ code: 'signup_disabled', status: 422 }, true)).toBe('notAllowed')
+  })
+})
+
+describe('authErrorKey — general', () => {
+  it('maps rate limits by status or code', () => {
+    expect(authErrorKey({ status: 429 }, true)).toBe('rateLimited')
+    expect(authErrorKey({ code: 'over_request_rate_limit', status: 400 }, true)).toBe('rateLimited')
   })
 
   it('maps a rejected address to invalidEmail', () => {
@@ -23,8 +40,9 @@ describe('authErrorKey', () => {
     expect(authErrorKey({ status: 429 }, false)).toBe('offline')
   })
 
-  it('treats a network failure while "online" as offline', () => {
+  it('a network failure or our timeout (status 0) reads as offline', () => {
     expect(authErrorKey({ message: 'Failed to fetch', status: 0 }, true)).toBe('offline')
+    expect(authErrorKey({ name: 'AuthRetryableFetchError', message: 'signal timed out', status: 0 }, true)).toBe('offline')
   })
 
   it('falls back to unknown', () => {
@@ -45,40 +63,5 @@ describe('looksLikeEmail', () => {
     expect(looksLikeEmail('ali@')).toBe(false)
     expect(looksLikeEmail('ali@example')).toBe(false)
     expect(looksLikeEmail('a li@example.com')).toBe(false)
-  })
-})
-
-describe('linkErrorFromHash', () => {
-  it('reports an expired or used magic link as badCode', () => {
-    expect(linkErrorFromHash('#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid')).toBe('badCode')
-  })
-
-  it('reports other link errors as unknown', () => {
-    expect(linkErrorFromHash('#error=server_error&error_code=unexpected_failure')).toBe('unknown')
-  })
-
-  it('returns null for a successful link or a normal route', () => {
-    expect(linkErrorFromHash('#access_token=abc&type=magiclink')).toBeNull()
-    expect(linkErrorFromHash('#/home')).toBeNull()
-    expect(linkErrorFromHash('')).toBeNull()
-  })
-})
-
-describe('authErrorKey — codes win over message text', () => {
-  it('an address the project may not email is notAllowed, not invalidEmail', () => {
-    expect(
-      authErrorKey({ code: 'email_address_not_authorized', status: 400, message: 'Email address "a@b.co" cannot be used as it is not authorized' }, true),
-    ).toBe('notAllowed')
-  })
-
-  it('sign-ups disabled is notAllowed', () => {
-    expect(authErrorKey({ code: 'otp_disabled', status: 422, message: 'Signups not allowed for otp' }, true)).toBe('notAllowed')
-    expect(authErrorKey({ code: 'signup_disabled', status: 422 }, true)).toBe('notAllowed')
-  })
-})
-
-describe('authErrorKey — stalled requests', () => {
-  it('a request aborted by our timeout (supabase-js wraps it as a status-0 retryable error) reads as offline', () => {
-    expect(authErrorKey({ name: 'AuthRetryableFetchError', message: 'signal timed out', status: 0 }, true)).toBe('offline')
   })
 })
