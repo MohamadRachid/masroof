@@ -1,0 +1,300 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  padding: calc(var(--safe-top) + var(--s-2)) var(--gutter) calc(var(--safe-bottom) + var(--s-6));
+}
+
+.top {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--s-8);
+  width: 100%;
+  max-width: 400px;
+  margin-inline: auto;
+  padding-block-end: 6vh;
+}
+
+/* First paint only: brand then form rise in. */
+.main > * {
+  animation: rise var(--dur-3) var(--ease-out) both;
+}
+.main > *:nth-child(2) {
+  animation-delay: 60ms;
+}
+.main > *:nth-child(3) {
+  animation-delay: 120ms;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+.brand {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-3);
+}
+
+.mark {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  margin-block-end: var(--s-2);
+  border-radius: var(--r-3);
+  background: var(--surface-1);
+  box-shadow:
+    inset 0 0 0 1px var(--line),
+    0 12px 32px -12px rgb(0 0 0 / 0.6);
+  color: var(--text);
+}
+
+.tagline {
+  color: var(--text-2);
+  font-size: var(--fs-lg);
+}
+
+.banner {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-2);
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: var(--fs-sm);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.label {
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  height: 58px;
+  padding-inline: var(--s-4);
+  border-radius: var(--r-2);
+  background: var(--surface-1);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  color: var(--text-3);
+  transition:
+    box-shadow var(--dur-2) ease,
+    color var(--dur-2) ease;
+}
+
+.field:focus-within {
+  box-shadow: inset 0 0 0 1.5px var(--text);
+  color: var(--text);
+}
+
+.field[data-invalid='true'] {
+  box-shadow: inset 0 0 0 1.5px var(--bad);
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  background: none;
+  font-size: var(--fs-lg);
+}
+
+.input::placeholder {
+  color: var(--text-3);
+}
+
+/* Emails stay LTR but sit at the start edge in Arabic. */
+:global([dir='rtl']) .input {
+  text-align: right;
+}
+
+.error {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin-block-start: calc(var(--s-1) * -1);
+  color: var(--bad);
+  font-size: var(--fs-sm);
+}
+
+.error[hidden] {
+  display: none;
+}
+
+.form > button[type='submit'] {
+  margin-block-start: var(--s-2);
+}
+
+.title {
+  font-size: var(--fs-2xl);
+}
+
+.body {
+  color: var(--text-2);
+}
+
+.body strong {
+  color: var(--text);
+  font-weight: 500;
+  display: inline-block;
+  max-width: 100%;
+  overflow-wrap: break-word;
+}
+
+/* One real input over six drawn cells: paste, autofill and the
+   numeric keypad all work, the cells are just paint. */
+.codeWrap {
+  position: relative;
+  margin-block-start: var(--s-3);
+}
+
+.codeInput {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  color: transparent;
+  caret-color: transparent;
+  font-size: 16px;
+}
+
+.codeInput::selection {
+  background: transparent;
+}
+
+.cells {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: var(--s-2);
+  transition: opacity var(--dur-2) ease;
+}
+
+.cells[data-busy] {
+  opacity: 0.5;
+}
+
+.cell {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 64px;
+  border-radius: var(--r-2);
+  background: var(--surface-1);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  font-family: var(--font-num);
+  font-size: 2.125rem;
+  line-height: 1;
+  transition:
+    box-shadow var(--dur-1) ease,
+    background-color var(--dur-1) ease;
+}
+
+.cell[data-filled] {
+  background: var(--surface-2);
+}
+
+.cell[data-active] {
+  box-shadow: inset 0 0 0 1.5px var(--text);
+}
+
+.cell[data-active]:empty::after {
+  content: '';
+  width: 1.5px;
+  height: 28px;
+  background: var(--text);
+  animation: blink 1.1s steps(1) infinite;
+}
+
+.cell[data-invalid='true'] {
+  box-shadow: inset 0 0 0 1.5px var(--bad);
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+.hint {
+  min-height: 1.5em;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+
+.hint[data-tone='bad'] {
+  color: var(--bad);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--s-2) var(--s-4);
+}
+
+.link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--tap);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: 450;
+  transition: color var(--dur-2) ease;
+}
+
+.link:disabled {
+  color: var(--text-3);
+}
+
+.link:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+/* The field draws the focus ring; the input inside doesn't need its own. */
+.input:focus-visible,
+.codeInput:focus-visible {
+  outline: none;
+}
+
+/* On the code step the keypad is up: keep the brand small so the cells stay visible. */
+.brand[data-compact] {
+  flex-direction: row;
+  align-items: center;
+}
+
+.brand[data-compact] .mark {
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  border-radius: var(--r-2);
+}
+
+.brand[data-compact] .tagline {
+  display: none;
+}
