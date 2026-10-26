@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { useI18n } from '../i18n'
-import { formatShortDate } from '../i18n/format'
-import { useAccounts, useCategories, useData, useEntries, useLatestRate, useSettings } from '../lib/data'
+import { formatShortDate, ltr } from '../i18n/format'
+import { useAccounts, useCategories, useCurrentPlan, useData, useEntries, useLatestRate, useSettings } from '../lib/data'
 import { localDateISO, relativeDay } from '../lib/dates'
 import type { Account, Category, Entry } from '../lib/db'
 import { lastUsed, quickTiles, type QuickTile } from '../lib/entries'
 import { effectiveRate, formatRate, isRealRate, rateFormula } from '../lib/fx'
-import { formatMoney, normalizeDigits, parseAmount } from '../lib/money'
+import { formatMoney, impactOf, normalizeDigits, parseAmount, round2, type PlanStats } from '../lib/money'
 import { accountName, categoryName, iconFor } from '../lib/names'
 import { addEntry, deleteEntry, restoreEntry, updateEntry, type EntryType } from '../lib/store'
 import { showToast } from '../lib/toast'
@@ -39,6 +39,7 @@ export function EntrySheet({
   const entries = useEntries()
   const settings = useSettings()
   const latestRate = useLatestRate()
+  const currentPlan = useCurrentPlan()
   useBackToClose(open && backCloses, onClose)
 
   // A fresh form every time the sheet opens.
@@ -54,7 +55,7 @@ export function EntrySheet({
   if (entry && entry !== shown) setShown(entry)
   const current = open ? entry : shown
 
-  const ready = accounts && categories && entries && settings !== undefined && latestRate !== undefined
+  const ready = accounts && categories && entries && settings !== undefined && latestRate !== undefined && currentPlan !== undefined
   return (
     <Sheet open={open} onClose={onClose} title={t(current ? 'entry.editTitle' : 'entry.addTitle')}>
       {ready && (
@@ -65,6 +66,7 @@ export function EntrySheet({
           categories={categories}
           entries={entries}
           rate={effectiveRate(settings ?? null, latestRate ?? null).rate}
+          plan={currentPlan?.stats ?? null}
           onDone={onClose}
         />
       )}
@@ -84,6 +86,7 @@ function EntryForm({
   categories,
   entries,
   rate,
+  plan,
   onDone,
 }: {
   entry: Entry | null
@@ -91,6 +94,7 @@ function EntryForm({
   categories: Category[]
   entries: Entry[]
   rate: number
+  plan: PlanStats | null
   onDone: () => void
 }) {
   const { t, lang } = useI18n()
@@ -127,6 +131,14 @@ function EntryForm({
   const valid = amount !== null && !!account && !!category
   const visible = allowedFor(type, categories)
   const shownRate = entry ? (rateOverride ?? entry.rate_usd_ghs) : rate
+
+  // SPEC §6 / rule 4: warn while typing, before saving. New 'out' entries only.
+  const amountGhs =
+    account?.currency === 'USD' ? (isRealRate(rate) ? round2((amount ?? 0) * rate) : null) : (amount ?? 0)
+  const impact =
+    !entry && plan && type === 'out' && category && amountGhs !== null
+      ? impactOf(plan, { categoryId: category.id, kind: category.kind, amountGhs })
+      : null
   const tiles = entry
     ? []
     : quickTiles(entries, today).filter((tile) => accounts.some((a) => a.id === tile.account_id) && categories.some((c) => c.id === tile.category_id))
@@ -278,6 +290,25 @@ function EntryForm({
           </button>
         ))}
       </div>
+
+      {impact && (impact.week || impact.envelope) && (
+        <div className={styles.impact} aria-live="polite">
+          {impact.week && (
+            <span data-status={impact.week.status}>
+              {impact.week.over > 0
+                ? t('impact.over', { amount: formatMoney(impact.week.over) })
+                : t('impact.week', { amounts: ltr(`${formatMoney(impact.week.spent)} / ${formatMoney(impact.week.limit)} GHS`) })}
+            </span>
+          )}
+          {impact.envelope && category && (
+            <span data-status={impact.envelope.left < 0 ? 'bad' : 'plain'}>
+              {impact.envelope.left >= 0
+                ? t('impact.envelope', { name: categoryName(category, lang), amount: formatMoney(impact.envelope.left) })
+                : t('impact.envelopeOver', { name: categoryName(category, lang), amount: formatMoney(-impact.envelope.left) })}
+            </span>
+          )}
+        </div>
+      )}
 
       <div className={styles.details}>
         <input

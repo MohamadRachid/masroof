@@ -309,3 +309,31 @@
   flex: none;
   color: var(--bad);
 }
+
+/* ── live impact (SPEC §6 item 6) ── */
+.impact {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--s-1) var(--s-3);
+  margin-block-start: calc(var(--s-1) * -1);
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.impact span {
+  color: var(--text-2);
+  transition: color var(--dur-2) ease;
+}
+
+.impact span[data-status='good'] {
+  color: var(--good);
+}
+
+.impact span[data-status='warn'] {
+  color: var(--warn);
+}
+
+.impact span[data-status='bad'] {
+  color: var(--bad);
+}

@@ -137,3 +137,99 @@
   align-items: baseline;
   gap: var(--s-2);
 }
+
+/* ── Safe to spend: the headline ── */
+.hero {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-5);
+  border-radius: var(--r-4);
+  background: var(--surface-1);
+  box-shadow:
+    inset 0 0 0 1px var(--line),
+    0 24px 48px -28px rgb(0 0 0 / 0.8);
+}
+
+.hero[data-status='good'] {
+  box-shadow:
+    inset 0 0 0 1px rgb(91 196 137 / 0.18),
+    0 24px 48px -28px rgb(0 0 0 / 0.8);
+}
+
+.hero[data-status='warn'] {
+  box-shadow:
+    inset 0 0 0 1px rgb(240 160 75 / 0.22),
+    0 24px 48px -28px rgb(0 0 0 / 0.8);
+}
+
+.hero[data-status='bad'] {
+  box-shadow:
+    inset 0 0 0 1px rgb(239 106 91 / 0.25),
+    0 24px 48px -28px rgb(0 0 0 / 0.8);
+}
+
+.heroLabel {
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+
+.heroAmount {
+  container-type: inline-size;
+}
+
+.heroAmount > span[data-size='xl'] {
+  font-size: clamp(2.5rem, 18cqi, 3.75rem);
+}
+
+.hero[data-status='good'] .heroAmount {
+  color: var(--good);
+}
+
+.hero[data-status='warn'] .heroAmount {
+  color: var(--warn);
+}
+
+.hero[data-status='bad'] .heroAmount {
+  color: var(--bad);
+}
+
+.week {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin-block-start: var(--s-2);
+}
+
+.weekRow {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s-3);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+
+.weekNumbers {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.heroHint,
+.heroDays {
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+}
+
+.envelopes {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  border-radius: var(--r-3);
+  background: var(--surface-1);
+  box-shadow: inset 0 0 0 1px var(--line);
+  text-align: start;
+}
+
+.envelopes > * + * {
+  box-shadow: inset 0 1px 0 var(--line);
+}

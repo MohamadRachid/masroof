@@ -1,0 +1,33 @@
+.track {
+  display: block;
+  overflow: hidden;
+  width: 100%;
+  height: 4px;
+  border-radius: var(--r-full);
+  background: var(--line-strong);
+}
+
+.fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--text);
+  transform-origin: left;
+  transition: transform var(--dur-3) var(--ease-out);
+}
+
+:global([dir='rtl']) .fill {
+  transform-origin: right;
+}
+
+.track[data-status='good'] .fill {
+  background: var(--good);
+}
+
+.track[data-status='warn'] .fill {
+  background: var(--warn);
+}
+
+.track[data-status='bad'] .fill {
+  background: var(--bad);
+}

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { ar } from './ar'
 import { en } from './en'
-import { dirFor, formatLongDate, formatShortDate, interpolate } from './format'
+import { dirFor, formatLongDate, formatShortDate, interpolate, ltr } from './format'
 
 describe('translations', () => {
   it('Arabic has exactly the English keys', () => {
@@ -65,5 +65,11 @@ describe('formatShortDate', () => {
     const ar = formatShortDate('2026-10-20', 'ar')
     expect(ar).toContain('20')
     expect(ar).not.toMatch(/[٠-٩]/)
+  })
+})
+
+describe('ltr', () => {
+  it('wraps text in LRI…PDI so numbers keep their order inside Arabic', () => {
+    expect(ltr('170 / 220 GHS')).toBe('⁦170 / 220 GHS⁩')
   })
 })

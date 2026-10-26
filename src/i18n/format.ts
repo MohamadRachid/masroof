@@ -24,3 +24,8 @@ export function formatShortDate(iso: string, lang: Lang): string {
   const [y = 1970, m = 1, d = 1] = iso.split('-').map(Number)
   return new Intl.DateTimeFormat(locales[lang], { day: 'numeric', month: 'short' }).format(new Date(y, m - 1, d))
 }
+
+/** Keep a run of numbers/codes ("170 / 220 GHS") in order inside right-to-left text. */
+export function ltr(text: string): string {
+  return `⁦${text}⁩`
+}

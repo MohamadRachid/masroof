@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto'
 import { describe, expect, it } from 'vitest'
 import { MasroofDB } from './db'
-import { addEntry, createAccounts, deleteEntry, repairPlaceholderRates, restoreEntry, updateAccount, updateEntry, updateSettings } from './store'
+import { addEntry, createAccounts, deleteEntry, repairPlaceholderRates, restoreEntry, savePlan, undoPlanSave, updateAccount, updateEntry, updateSettings } from './store'
 
 let dbCount = 0
 const freshDb = () => new MasroofDB(`store_${++dbCount}_${Date.now()}`)
@@ -117,5 +117,41 @@ describe('repairPlaceholderRates (phase 1 entries saved with rate 1)', () => {
     const db = freshDb()
     await addEntry(db, 'u1', { ...input, rate_usd_ghs: 1 })
     expect(await repairPlaceholderRates(db)).toBe(0)
+  })
+})
+
+describe('plans', () => {
+  const draft = { salary: 5000, start_date: '2026-10-26', expected_end: '2026-11-25', amounts: { rent: 1500, food: 900, savings: 500 } }
+
+  it('savePlan creates the plan and one envelope per category, all queued', async () => {
+    const db = freshDb()
+    const saved = await savePlan(db, 'u1', null, draft)
+    expect(saved.plan).toMatchObject({ user_id: 'u1', salary: 5000, start_date: '2026-10-26', expected_end: '2026-11-25', closed_at: null })
+    expect(saved.envelopes.map((e) => [e.category_id, e.amount, e.plan_id === saved.plan.id]).sort()).toEqual([
+      ['food', 900, true], ['rent', 1500, true], ['savings', 500, true],
+    ])
+    expect(await db.outbox.count()).toBe(4)
+  })
+
+  it('editing keeps the start date and the envelope ids, and undo restores the previous amounts', async () => {
+    const db = freshDb()
+    const first = await savePlan(db, 'u1', null, draft)
+    const edited = await savePlan(db, 'u1', first, { ...draft, start_date: '2026-10-30', salary: 5200, amounts: { rent: 1500, food: 1100, savings: 500 } })
+    expect(edited.plan.id).toBe(first.plan.id)
+    expect(edited.plan.start_date).toBe('2026-10-26')
+    expect(edited.envelopes.find((e) => e.category_id === 'food')?.id).toBe(first.envelopes.find((e) => e.category_id === 'food')?.id)
+
+    await undoPlanSave(db, first, edited)
+    expect((await db.plans.get(first.plan.id))?.salary).toBe(5000)
+    const food = (await db.plan_envelopes.toArray()).find((e) => e.category_id === 'food')
+    expect(food?.amount).toBe(900)
+  })
+
+  it('undo of a brand-new plan soft-deletes it and its envelopes', async () => {
+    const db = freshDb()
+    const created = await savePlan(db, 'u1', null, draft)
+    await undoPlanSave(db, null, created)
+    expect((await db.plans.get(created.plan.id))?.deleted_at).toBeTruthy()
+    expect((await db.plan_envelopes.toArray()).every((e) => e.deleted_at)).toBe(true)
   })
 })

@@ -1,15 +1,18 @@
+import { useEffect } from 'react'
 import { EntryRow } from '../components/EntryRow'
+import { EnvelopeRow } from '../components/EnvelopeRow'
 import { Icon } from '../components/Icon'
 import { Equivalent, Money } from '../components/Money'
+import { Progress } from '../components/Progress'
 import { RateLine } from '../components/RateLine'
 import { Screen } from '../components/Screen'
 import { useI18n } from '../i18n'
-import { formatLongDate } from '../i18n/format'
-import { useAccounts, useCategories, useDisplayRate, useEntries } from '../lib/data'
+import { formatLongDate, ltr } from '../i18n/format'
+import { useAccounts, useCategories, useCurrentPlan, useDisplayRate, useEntries, useSettings } from '../lib/data'
 import { parseLocalDate } from '../lib/dates'
 import type { Entry } from '../lib/db'
 import { groupByDay } from '../lib/entries'
-import { balance } from '../lib/money'
+import { balance, formatMoney, type PlanStats, type WeekStatus } from '../lib/money'
 import { accountName } from '../lib/names'
 import { goTab } from '../lib/router'
 import { useToday } from '../lib/useToday'
@@ -22,7 +25,10 @@ export default function Home({ onOpenEntry }: { onOpenEntry: (entry: Entry) => v
   const entries = useEntries()
   const today = useToday()
   const rate = useDisplayRate()
-  if (!accounts || !categories || !entries) return null
+  const current = useCurrentPlan()
+  const settings = useSettings()
+  useStatusGlow(current?.stats.week.status ?? null)
+  if (!accounts || !categories || !entries || current === undefined) return null
 
   const currencyOf = (id: string) => accounts.find((a) => a.id === id)?.currency ?? ''
   const todayGroup = groupByDay(
@@ -32,6 +38,30 @@ export default function Home({ onOpenEntry }: { onOpenEntry: (entry: Entry) => v
 
   return (
     <Screen title={t('home.title')} subtitle={formatLongDate(parseLocalDate(today), lang)}>
+      {current && (
+        <section className={styles.hero} data-status={current.stats.week.status} aria-label={t('home.safe')}>
+          <span className={styles.heroLabel}>{t('home.safe')}</span>
+          <span className={styles.heroAmount}>
+            <Money value={current.stats.safeToSpend} currency="GHS" size="xl" />
+          </span>
+          <Equivalent amount={current.stats.safeToSpend} currency="GHS" rate={rate} />
+          {current.stats.week.limit > 0 || current.stats.week.spent > 0 ? (
+            <div className={styles.week}>
+              <div className={styles.weekRow}>
+                <span>{t('home.week')}</span>
+                <span className={styles.weekNumbers}>
+                  {ltr(`${formatMoney(current.stats.week.spent)} / ${formatMoney(current.stats.week.limit)} GHS`)}
+                </span>
+              </div>
+              <Progress value={current.stats.week.limit > 0 ? current.stats.week.spent / current.stats.week.limit : 1} status={current.stats.week.status} />
+            </div>
+          ) : (
+            <p className={styles.heroHint}>{t('home.noVariable')}</p>
+          )}
+          <span className={styles.heroDays}>{t('plan.daysLeft', { days: current.stats.daysRemaining })}</span>
+        </section>
+      )}
+
       <section className={styles.balances} aria-label={t('home.balances')}>
         {accounts.map((a) => {
           const value = balance(a, entries)
@@ -46,16 +76,20 @@ export default function Home({ onOpenEntry }: { onOpenEntry: (entry: Entry) => v
         })}
       </section>
 
-      <button type="button" className={styles.planCard} onClick={() => goTab('plan')}>
-        <span className={styles.planIcon}>
-          <Icon name="plan" size={22} />
-        </span>
-        <span className={styles.planText}>
-          <span className={styles.planTitle}>{t('home.planCard.title')}</span>
-          <span className={styles.planBody}>{t('home.planCard.body')}</span>
-        </span>
-        <Icon name="chevron" size={18} />
-      </button>
+      {current ? (
+        <EnvelopesPreview stats={current.stats} warnPct={settings?.warn_pct ?? 80} />
+      ) : (
+        <button type="button" className={styles.planCard} onClick={() => goTab('plan')}>
+          <span className={styles.planIcon}>
+            <Icon name="plan" size={22} />
+          </span>
+          <span className={styles.planText}>
+            <span className={styles.planTitle}>{t('home.planCard.title')}</span>
+            <span className={styles.planBody}>{t('home.planCard.body')}</span>
+          </span>
+          <Icon name="chevron" size={18} />
+        </button>
+      )}
 
       <section className={styles.today}>
         <div className={styles.todayHead}>
@@ -90,5 +124,46 @@ export default function Home({ onOpenEntry }: { onOpenEntry: (entry: Entry) => v
 
       <RateLine />
     </Screen>
+  )
+}
+
+const GLOW: Record<WeekStatus, string> = {
+  good: 'rgb(91 196 137 / 0.07)',
+  warn: 'rgb(240 160 75 / 0.09)',
+  bad: 'rgb(239 106 91 / 0.1)',
+}
+
+/** The page's ambient glow takes the week's colour while Home is showing. */
+function useStatusGlow(status: WeekStatus | null) {
+  useEffect(() => {
+    const root = document.documentElement
+    if (status) root.style.setProperty('--glow', GLOW[status])
+    return () => {
+      root.style.removeProperty('--glow')
+    }
+  }, [status])
+}
+
+/** Envelopes for the open plan, day-to-day first; tap through to the Plan tab. */
+function EnvelopesPreview({ stats, warnPct }: { stats: PlanStats; warnPct: number }) {
+  const { t } = useI18n()
+  const categories = useCategories() ?? []
+  const order = { variable: 0, fixed: 1, savings: 2 } as Record<string, number>
+  const sortOf = (id: string) => categories.find((c) => c.id === id)?.sort ?? 0
+  const list = stats.envelopes
+    .filter((e) => e.planned > 0 || e.spent > 0)
+    .sort((a, b) => (order[a.kind] ?? 3) - (order[b.kind] ?? 3) || sortOf(a.category_id) - sortOf(b.category_id))
+  if (list.length === 0) return null
+  return (
+    <section className={styles.today}>
+      <div className={styles.todayHead}>
+        <h2 className={styles.sectionTitle}>{t('home.envelopes')}</h2>
+      </div>
+      <button type="button" className={styles.envelopes} onClick={() => goTab('plan')}>
+        {list.map((e) => (
+          <EnvelopeRow key={e.category_id} stat={e} category={categories.find((c) => c.id === e.category_id)} warnPct={warnPct} />
+        ))}
+      </button>
+    </section>
   )
 }

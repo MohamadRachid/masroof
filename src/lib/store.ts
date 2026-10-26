@@ -1,4 +1,4 @@
-import type { Account, Entry, MasroofDB, Settings } from './db'
+import type { Account, Entry, MasroofDB, Plan, PlanEnvelope, Settings } from './db'
 import { nowISO } from './dates'
 import { isRealRate, rateForDate } from './fx'
 import { round2 } from './money'
@@ -130,4 +130,66 @@ export async function repairPlaceholderRates(db: MasroofDB): Promise<number> {
   }
   if (fixed.length > 0) await queueRows(db, 'entries', fixed)
   return fixed.length
+}
+
+// ── Plans (SPEC §6 Plan, §7) ─────────────────────────────────────────────
+
+export type PlanDraft = { salary: number; start_date: string; expected_end: string; amounts: Record<string, number> }
+export type PlanSnapshot = { plan: Plan; envelopes: PlanEnvelope[] }
+
+/** Create a plan, or edit the open one (its start date never moves); one envelope per category. */
+export async function savePlan(
+  db: MasroofDB,
+  userId: string,
+  existing: PlanSnapshot | null,
+  draft: PlanDraft,
+): Promise<PlanSnapshot> {
+  const now = nowISO()
+  const plan: Plan = existing
+    ? { ...existing.plan, salary: round2(draft.salary), expected_end: draft.expected_end, updated_at: now }
+    : {
+        id: crypto.randomUUID(),
+        user_id: userId,
+        start_date: draft.start_date,
+        expected_end: draft.expected_end,
+        salary: round2(draft.salary),
+        closed_at: null,
+        created_at: now,
+        updated_at: now,
+        deleted_at: null,
+      }
+  const byCategory = new Map((existing?.envelopes ?? []).map((e) => [e.category_id, e]))
+  const envelopes: PlanEnvelope[] = Object.entries(draft.amounts).map(([categoryId, amount]) => {
+    const prev = byCategory.get(categoryId)
+    return prev
+      ? { ...prev, amount: round2(amount), deleted_at: null, updated_at: now }
+      : {
+          id: crypto.randomUUID(),
+          user_id: userId,
+          plan_id: plan.id,
+          category_id: categoryId,
+          amount: round2(amount),
+          created_at: now,
+          updated_at: now,
+          deleted_at: null,
+        }
+  })
+  await queueRows(db, 'plans', [plan])
+  await queueRows(db, 'plan_envelopes', envelopes)
+  return { plan, envelopes }
+}
+
+/** Undo a plan save: put the previous version back, or soft-delete a plan that was just created. */
+export async function undoPlanSave(db: MasroofDB, before: PlanSnapshot | null, saved: PlanSnapshot): Promise<void> {
+  const now = nowISO()
+  if (before) {
+    await queueRows(db, 'plans', [{ ...before.plan, updated_at: now }])
+    const restored = new Map(before.envelopes.map((e) => [e.id, { ...e, updated_at: now }]))
+    // Envelopes added by the edit didn't exist before: remove them.
+    for (const e of saved.envelopes) if (!restored.has(e.id)) restored.set(e.id, { ...e, deleted_at: now, updated_at: now })
+    await queueRows(db, 'plan_envelopes', [...restored.values()])
+  } else {
+    await queueRows(db, 'plans', [{ ...saved.plan, deleted_at: now, updated_at: now }])
+    await queueRows(db, 'plan_envelopes', saved.envelopes.map((e) => ({ ...e, deleted_at: now, updated_at: now })))
+  }
 }

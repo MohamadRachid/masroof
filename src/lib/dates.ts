@@ -26,3 +26,36 @@ export function relativeDay(iso: string, todayIso: string): 'today' | 'yesterday
 export function nowISO(): string {
   return new Date().toISOString()
 }
+
+const utc = (iso: string) => {
+  const [y = 1970, m = 1, d = 1] = iso.split('-').map(Number)
+  return Date.UTC(y, m - 1, d)
+}
+
+/** Whole days from `from` to `to` (negative if `to` is earlier). DST-proof. */
+export function daysBetween(from: string, to: string): number {
+  return Math.round((utc(to) - utc(from)) / 86_400_000)
+}
+
+/** Days from `from` to `to`, counting both, never below 1 (SPEC §5 "days remaining"). */
+export function daysInclusive(from: string, to: string): number {
+  return Math.max(1, daysBetween(from, to) + 1)
+}
+
+/** The first day of the week containing `iso`; weekStart 0 = Sunday … 6 = Saturday. */
+export function weekStartOf(iso: string, weekStart: number): string {
+  const dow = parseLocalDate(iso).getDay()
+  return addDays(iso, -((dow - weekStart + 7) % 7))
+}
+
+const daysInMonth = (y: number, m: number) => new Date(y, m, 0).getDate() // m is 1-based
+
+/** The next usual payday after today (today itself counts as already paid), clamped to short months. */
+export function nextPayday(todayIso: string, payday: number): string {
+  const [y = 1970, m = 1, d = 1] = todayIso.split('-').map(Number)
+  const day = (yy: number, mm: number) => Math.min(payday, daysInMonth(yy, mm))
+  if (d < day(y, m)) return `${y}-${pad(m)}-${pad(day(y, m))}`
+  const ny = m === 12 ? y + 1 : y
+  const nm = m === 12 ? 1 : m + 1
+  return `${ny}-${pad(nm)}-${pad(day(ny, nm))}`
+}
