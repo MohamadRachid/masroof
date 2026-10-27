@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { DueRow } from '../components/DueRow'
 import { EntryRow } from '../components/EntryRow'
 import { EnvelopeRow } from '../components/EnvelopeRow'
@@ -52,32 +52,40 @@ export default function Home({ onOpenEntry }: { onOpenEntry: (entry: Entry) => v
   const { db, userId } = useData()
   const [salaryOpen, setSalaryOpen] = useState(false)
   const [checking, setChecking] = useState<Account | null>(null)
+  // Keys (item|date) being posted: a Post stays disabled until its row leaves the Due card.
   const [posting, setPosting] = useState<ReadonlySet<string>>(new Set())
+  // SPEC §7 Recurring: due items wait for a tap; an item whose account or category is gone can't be posted.
+  const due = useMemo(() => {
+    if (!accounts || !categories || !entries || !recurring || !period) return []
+    const postable = recurring.filter((r) => accounts.some((a) => a.id === r.account_id) && categories.some((c) => c.id === r.category_id))
+    return dueItems(postable, period, entries, today)
+  }, [accounts, categories, entries, recurring, period, today])
+  const [prevDue, setPrevDue] = useState(due)
+  if (due !== prevDue) {
+    setPrevDue(due)
+    const shown = new Set(due.map((d) => dueKey(d.item, d.date)))
+    if (![...posting].every((k) => shown.has(k))) setPosting(new Set([...posting].filter((k) => shown.has(k))))
+  }
   useStatusGlow(current?.stats.week.status ?? null)
   if (!accounts || !categories || !entries || current === undefined || !plans || !recurring || !period) return null
 
   // SPEC §7 payday nudge: a tap opens Salary received; nothing is recorded on its own.
   const payday = settings?.usual_payday ?? 25
   const salaryNudge = salaryDue(today, payday, plans.map((p) => p.start_date))
-  // SPEC §7 Recurring: due items wait for a tap; an item whose account or category is gone can't be posted.
-  const postable = recurring.filter((r) => accounts.some((a) => a.id === r.account_id) && categories.some((c) => c.id === r.category_id))
-  const due = dueItems(postable, period, entries, today)
 
-  async function post(item: Recurring) {
-    if (posting.has(item.id)) return
-    setPosting((s) => new Set(s).add(item.id))
+  async function post(item: Recurring, date: string) {
+    const key = dueKey(item, date)
+    if (posting.has(key)) return
+    setPosting((s) => new Set(s).add(key))
     try {
       const entry = await postRecurring(db, userId, item, { date: today, rate: effective?.rate ?? 1 })
       showToast({
         message: t('toast.posted', { name: item.name, amount: formatMoney(item.amount), currency: accounts?.find((a) => a.id === item.account_id)?.currency ?? '' }),
         action: { label: t('toast.undo'), run: () => void deleteEntry(db, entry) },
       })
-    } finally {
-      setPosting((s) => {
-        const next = new Set(s)
-        next.delete(item.id)
-        return next
-      })
+    } catch {
+      setPosting((s) => new Set([...s].filter((k) => k !== key)))
+      showToast({ message: t('toast.saveFailed') })
     }
   }
 
@@ -173,8 +181,8 @@ export default function Home({ onOpenEntry }: { onOpenEntry: (entry: Entry) => v
                 today={today}
                 category={categories.find((c) => c.id === item.category_id)}
                 account={accounts.find((a) => a.id === item.account_id)}
-                busy={posting.has(item.id)}
-                onPost={() => void post(item)}
+                busy={posting.has(dueKey(item, date))}
+                onPost={() => void post(item, date)}
               />
             ))}
           </div>
@@ -218,6 +226,8 @@ export default function Home({ onOpenEntry }: { onOpenEntry: (entry: Entry) => v
     </Screen>
   )
 }
+
+const dueKey = (item: { id: string }, date: string) => `${item.id}|${date}`
 
 const GLOW: Record<WeekStatus, string> = {
   good: 'rgb(91 196 137 / 0.07)',

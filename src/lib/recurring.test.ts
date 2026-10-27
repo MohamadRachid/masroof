@@ -67,6 +67,17 @@ describe('recurringState', () => {
     expect(recurringState(item, long, [posted('gym', '2026-10-26'), posted('gym', '2026-11-27')], '2026-11-28')).toEqual({ state: 'posted', date: '2026-11-27' })
   })
 
+  it('a late bill posted on salary day does not count for the next plan', () => {
+    // Rent on the 20th, posted late on 25 Oct; the salary that day starts a plan to 25 Nov.
+    const next = { start: '2026-10-25', end: '2026-11-25' }
+    const rent20 = { id: 'rent', day_of_month: 20 }
+    expect(recurringState(rent20, next, [posted('rent', '2026-10-25')], '2026-11-20')).toEqual({ state: 'due', date: '2026-11-20' })
+    expect(recurringState(rent20, next, [posted('rent', '2026-10-25')], '2026-10-26')).toEqual({ state: 'upcoming', date: '2026-11-20' })
+    // Rent on payday itself: the entry of that day is this plan's first date, paid.
+    const rent25 = { id: 'rent', day_of_month: 25 }
+    expect(recurringState(rent25, next, [posted('rent', '2026-10-25')], '2026-10-26')).toEqual({ state: 'posted', date: '2026-10-25' })
+  })
+
   it('is none when its day misses the period', () => {
     expect(recurringState({ id: 'x', day_of_month: 10 }, { start: '2026-10-20', end: '2026-11-05' }, [], '2026-10-27')).toEqual({ state: 'none' })
   })

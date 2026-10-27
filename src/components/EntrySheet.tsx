@@ -352,7 +352,8 @@ function EntryForm({
           </Button>
         )}
         <Button variant="primary" size="lg" block onClick={() => void save()} disabled={!valid || busy}>
-          {valid && amount !== null ? t('entry.saveAmount', { amount: formatMoney(amount), currency: account.currency }) : t('entry.save')}
+          {/* ltr: an adjustment's minus sign stays in front of its number in Arabic. */}
+          {valid && amount !== null ? t('entry.saveAmount', { amount: ltr(formatMoney(amount)), currency: account.currency }) : t('entry.save')}
         </Button>
       </div>
     </div>

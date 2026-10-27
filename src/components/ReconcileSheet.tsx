@@ -6,7 +6,7 @@ import type { Account } from '../lib/db'
 import { effectiveRate } from '../lib/fx'
 import { adjustCategory, balance, drift, formatSigned, normalizeDigits, parseSignedAmount } from '../lib/money'
 import { accountName } from '../lib/names'
-import { reconcile, undoReconcile } from '../lib/store'
+import { reconcile, undoReconcile, type ReconcileReceipt } from '../lib/store'
 import { showToast } from '../lib/toast'
 import { useToday } from '../lib/useToday'
 import { Button } from './Button'
@@ -18,14 +18,22 @@ import styles from './ReconcileSheet.module.css'
 /** SPEC §7 Reconcile: the balance Masroof computed, the real one typed in, the drift live; Save fixes the balance. */
 export function ReconcileSheet({ account, onClose }: { account: Account | null; onClose: () => void }) {
   const { t } = useI18n()
-  useBackToClose(account !== null, onClose)
+  const open = account !== null
+  useBackToClose(open, onClose)
+  // A fresh form every time the sheet opens.
+  const [session, setSession] = useState(0)
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open) setSession((s) => s + 1)
+  }
   // The parent clears `account` as the sheet starts closing; keep its title until the exit ends.
   const [shown, setShown] = useState(account)
   if (account && account !== shown) setShown(account)
   const current = account ?? shown
   return (
-    <Sheet open={account !== null} onClose={onClose} title={current ? t('reconcile.title', { account: accountName(current, t) }) : ''}>
-      {current && <ReconcileForm key={current.id} accountId={current.id} onDone={onClose} />}
+    <Sheet open={open} onClose={onClose} title={current ? t('reconcile.title', { account: accountName(current, t) }) : ''}>
+      {current && <ReconcileForm key={`${session}-${current.id}`} accountId={current.id} onDone={onClose} />}
     </Sheet>
   )
 }
@@ -60,18 +68,25 @@ function ReconcileForm({ accountId, onDone }: { accountId: string; onDone: () =>
     e.preventDefault()
     if (!account || actual === null || !category || busy) return
     setBusy(true)
-    const receipt = await reconcile(db, userId, {
-      accountId: account.id,
-      actual,
-      date: today,
-      rate: effectiveRate(settings ?? null, latestRate ?? null).rate,
-      categoryId: category.id,
-      note: t('reconcile.note'),
-    })
+    let receipt: ReconcileReceipt
+    try {
+      receipt = await reconcile(db, userId, {
+        accountId: account.id,
+        actual,
+        date: today,
+        rate: effectiveRate(settings ?? null, latestRate ?? null).rate,
+        categoryId: category.id,
+        note: t('reconcile.note'),
+      })
+    } catch {
+      setBusy(false)
+      showToast({ message: t('toast.saveFailed') })
+      return
+    }
     const name = accountName(account, t)
     showToast({
       message: receipt.adjustment
-        ? t('toast.adjusted', { account: name, amount: formatSigned(receipt.adjustment.amount), currency: account.currency })
+        ? t('toast.adjusted', { account: name, amount: ltr(formatSigned(receipt.adjustment.amount)), currency: account.currency })
         : t('toast.reconciled', { account: name }),
       action: { label: t('toast.undo'), run: () => void undoReconcile(db, receipt) },
     })

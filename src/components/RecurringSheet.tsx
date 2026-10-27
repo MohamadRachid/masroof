@@ -45,8 +45,9 @@ export function RecurringSheet({ open, item, onClose }: { open: boolean; item: R
   )
 }
 
-function allowedFor(type: Kind, categories: Category[]): Category[] {
-  return categories.filter((c) => !c.archived && (type === 'in' ? c.kind === 'income' : c.kind !== 'income'))
+/** Categories for this type; an item's own category stays offered even after it was archived. */
+function allowedFor(type: Kind, categories: Category[], keep?: string): Category[] {
+  return categories.filter((c) => (!c.archived || c.id === keep) && (type === 'in' ? c.kind === 'income' : c.kind !== 'income'))
 }
 
 function RecurringForm({
@@ -70,7 +71,7 @@ function RecurringForm({
   // New items: Out, the last-used account, a fixed category (rent and bills are what repeats), today's day.
   const startType: Kind = item?.type === 'in' ? 'in' : 'out'
   const pickCategory = (type: Kind, id: string | undefined) => {
-    const allowed = allowedFor(type, categories)
+    const allowed = allowedFor(type, categories, item?.category_id)
     const fallback = type === 'out' ? (allowed.find((c) => c.kind === 'fixed') ?? allowed[0]) : allowed[0]
     return (allowed.some((c) => c.id === id) ? id : fallback?.id) ?? ''
   }
@@ -105,7 +106,14 @@ function RecurringForm({
     e.preventDefault()
     if (!valid || busy || amount === null || day === null) return
     setBusy(true)
-    const saved = await saveRecurring(db, userId, item, { name, type, amount, account_id: accountId, category_id: categoryId, day_of_month: day })
+    let saved: Recurring
+    try {
+      saved = await saveRecurring(db, userId, item, { name, type, amount, account_id: accountId, category_id: categoryId, day_of_month: day })
+    } catch {
+      setBusy(false)
+      showToast({ message: t('toast.saveFailed') })
+      return
+    }
     showToast({
       message: t('toast.recurringSaved'),
       action: { label: t('toast.undo'), run: () => void (item ? restoreRecurring(db, item) : deleteRecurring(db, saved)) },
@@ -163,7 +171,7 @@ function RecurringForm({
       </div>
 
       <div ref={categoryRow} className={styles.scroller} role="radiogroup" aria-label={t('entry.category')}>
-        {allowedFor(type, categories).map((c) => (
+        {allowedFor(type, categories, item?.category_id).map((c) => (
           <button key={c.id} type="button" role="radio" aria-checked={c.id === categoryId} className={styles.chip} onClick={() => setCategoryId(c.id)}>
             <Icon name={iconFor(c.icon)} size={16} />
             {categoryName(c, lang)}

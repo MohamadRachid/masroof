@@ -155,7 +155,8 @@ function RecurringSection({ onOpen }: { onOpen: (item: Recurring | null) => void
       {items.map((r) => {
         const account = accounts.find((a) => a.id === r.account_id)
         const category = categories.find((c) => c.id === r.category_id)
-        const s = recurringState(r, period, entries, today)
+        // Same rule as Home's Due card: an item whose account or category is gone has no state.
+        const s = account && category ? recurringState(r, period, entries, today) : ({ state: 'none' } as const)
         const state =
           s.state === 'due'
             ? t('recurring.dueNow')
@@ -213,8 +214,9 @@ function ReconcileSection({ onOpen }: { onOpen: (account: Account) => void }) {
 
   const byId = new Map(accounts.map((a) => [a.id, a]))
   const currencyOf = (id: string) => byId.get(id)?.currency ?? ''
-  // USD drift counts at today's rate (display only).
-  const trend = driftTrend(checks, (id, amount) => (currencyOf(id) === 'USD' && rate !== null ? convert(amount, 'USD', rate) : amount))
+  // USD drift counts at today's rate (display only); with no rate yet, USD checks stay out of the trend.
+  const trendChecks = rate === null ? checks.filter((c) => currencyOf(c.account_id) !== 'USD') : checks
+  const trend = driftTrend(trendChecks, (id, amount) => (rate !== null && currencyOf(id) === 'USD' ? convert(amount, 'USD', rate) : amount))
   const shown = showAll ? checks : checks.slice(0, HISTORY)
   const nameOf = (id: string) => {
     const a = byId.get(id)

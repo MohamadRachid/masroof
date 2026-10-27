@@ -40,8 +40,8 @@ export type RecurringState =
   | { state: 'none' }
 
 /**
- * Due while fewer entries with its recurring_id sit in the period than its dates already
- * reached (date = the first one not covered). Posted: the latest posted entry's date.
+ * Due while fewer entries with its recurring_id sit in the period (from its first date on)
+ * than its dates already reached (date = the first one not covered). Posted: the latest entry's date.
  */
 export function recurringState(
   item: { id: string; day_of_month: number },
@@ -50,8 +50,11 @@ export function recurringState(
   today: string,
 ): RecurringState {
   const dates = occurrences(period, item.day_of_month)
+  const first = dates[0]
+  // An entry pays a date on or before its own. The salary day ends one period and starts the
+  // next, so a late bill posted that day must not count for the new plan's later date.
   const posted = entries
-    .filter((e) => e.recurring_id === item.id && !e.deleted_at && e.date >= period.start && e.date <= period.end)
+    .filter((e) => e.recurring_id === item.id && !e.deleted_at && first !== undefined && e.date >= first && e.date <= period.end)
     .map((e) => e.date)
     .sort()
   const reached = dates.filter((d) => d <= today)
