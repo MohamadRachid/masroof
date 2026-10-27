@@ -2,7 +2,8 @@ import 'fake-indexeddb/auto'
 import { describe, expect, it } from 'vitest'
 import { MasroofDB } from './db'
 import Dexie from 'dexie'
-import { addEntry, createAccounts, deleteEntry, PlanChangedError, receiveSalary, repairPlaceholderRates, restoreEntry, savePlan, undoPlanSave, undoSalary, updateAccount, updateEntry, updateSettings } from './store'
+import { addEntry, createAccounts, deleteEntry, deleteRecurring, PlanChangedError, postRecurring, receiveSalary, reconcile, repairPlaceholderRates, restoreEntry, restoreRecurring, savePlan, saveRecurring, undoPlanSave, undoReconcile, undoSalary, updateAccount, updateEntry, updateSettings } from './store'
+import { balance } from './money'
 
 let dbCount = 0
 const freshDb = () => new MasroofDB(`store_${++dbCount}_${Date.now()}`)
@@ -267,5 +268,92 @@ describe('local database upgrade', () => {
 
     const db = new MasroofDB(name)
     expect(await db.plans.get('p1')).toMatchObject({ salary: 5000, carry_in: 0, leftover: null, leftover_action: null })
+  })
+})
+
+describe('reconcile (SPEC §7)', () => {
+  async function cashAccount(db: MasroofDB) {
+    await createAccounts(db, 'u1', { bank: 0, cash: 200, usd: 0 })
+    const cash = (await db.accounts.toArray()).find((a) => a.name === 'Cash')
+    if (!cash) throw new Error('no cash')
+    await addEntry(db, 'u1', { ...input, account_id: cash.id, amount: 4.45 }) // computed: 195.55
+    return cash
+  }
+  const check = { actual: 230, date: '2026-10-27', rate: 11.6, categoryId: 'other-id', note: 'Reconcile' }
+
+  it('records the check and an adjustment for the drift, so the balance becomes the actual', async () => {
+    const db = freshDb()
+    const cash = await cashAccount(db)
+    await db.outbox.clear()
+    const receipt = await reconcile(db, 'u1', { ...check, accountId: cash.id })
+    expect(receipt.check).toMatchObject({ user_id: 'u1', account_id: cash.id, date: '2026-10-27', actual: 230, computed: 195.55, diff: 34.45, deleted_at: null })
+    expect(receipt.adjustment).toMatchObject({
+      type: 'adjust', amount: 34.45, account_id: cash.id, category_id: 'other-id', note: 'Reconcile', date: '2026-10-27', rate_usd_ghs: 11.6, recurring_id: null,
+    })
+    expect(balance(cash, await db.entries.toArray())).toBe(230)
+    expect((await db.outbox.toArray()).map((i) => i.table).sort()).toEqual(['entries', 'reconciliations'])
+  })
+
+  it('a negative drift makes a negative adjustment', async () => {
+    const db = freshDb()
+    const cash = await cashAccount(db)
+    const receipt = await reconcile(db, 'u1', { ...check, accountId: cash.id, actual: 160.55 })
+    expect(receipt.adjustment?.amount).toBe(-35)
+    expect(balance(cash, await db.entries.toArray())).toBe(160.55)
+  })
+
+  it('no drift: the check only, no adjustment', async () => {
+    const db = freshDb()
+    const cash = await cashAccount(db)
+    const receipt = await reconcile(db, 'u1', { ...check, accountId: cash.id, actual: 195.55 })
+    expect(receipt.check.diff).toBe(0)
+    expect(receipt.adjustment).toBeNull()
+    expect(await db.entries.filter((e) => e.type === 'adjust').count()).toBe(0)
+  })
+
+  it('undoReconcile removes both the check and its adjustment', async () => {
+    const db = freshDb()
+    const cash = await cashAccount(db)
+    const receipt = await reconcile(db, 'u1', { ...check, accountId: cash.id })
+    await undoReconcile(db, receipt)
+    expect((await db.reconciliations.get(receipt.check.id))?.deleted_at).toBeTruthy()
+    expect((await db.entries.get(receipt.adjustment?.id ?? ''))?.deleted_at).toBeTruthy()
+    expect(balance(cash, await db.entries.toArray())).toBe(195.55)
+  })
+})
+
+describe('recurring (SPEC §7)', () => {
+  const draft = { name: 'Rent', type: 'out', amount: 1500, account_id: 'bank-id', category_id: 'rent-id', day_of_month: 1 }
+
+  it('saveRecurring creates a complete row, edits keep the id, delete and restore round-trip', async () => {
+    const db = freshDb()
+    const created = await saveRecurring(db, 'u1', null, { ...draft, name: '  Rent ' })
+    expect(created).toMatchObject({ ...draft, user_id: 'u1', deleted_at: null })
+    expect(await db.recurring.get(created.id)).toEqual(created)
+
+    const edited = await saveRecurring(db, 'u1', created, { ...draft, amount: 1600.004, day_of_month: 2 })
+    expect(edited.id).toBe(created.id)
+    expect(edited).toMatchObject({ amount: 1600, day_of_month: 2 })
+
+    await deleteRecurring(db, edited)
+    expect((await db.recurring.get(created.id))?.deleted_at).toBeTruthy()
+    await restoreRecurring(db, edited)
+    expect(await db.recurring.get(created.id)).toMatchObject({ amount: 1600, deleted_at: null })
+    expect(await db.outbox.count()).toBe(4)
+  })
+
+  it('postRecurring adds an ordinary entry that points at the item, named after it', async () => {
+    const db = freshDb()
+    const item = await saveRecurring(db, 'u1', null, draft)
+    const entry = await postRecurring(db, 'u1', item, { date: '2026-11-01', rate: 11.6 })
+    expect(entry).toMatchObject({
+      type: 'out', amount: 1500, account_id: 'bank-id', category_id: 'rent-id', note: 'Rent', date: '2026-11-01', rate_usd_ghs: 11.6, recurring_id: item.id,
+    })
+    expect(await db.entries.get(entry.id)).toEqual(entry)
+  })
+
+  it('addEntry keeps recurring_id null unless one is given', async () => {
+    const db = freshDb()
+    expect((await addEntry(db, 'u1', input)).recurring_id).toBeNull()
   })
 })

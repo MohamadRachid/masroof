@@ -196,6 +196,26 @@ const paths = {
       <path d="M21 3v5h-5" />
     </>
   ),
+  repeat: (
+    <>
+      <path d="m17 2 4 4-4 4" />
+      <path d="M3 11v-1a4 4 0 0 1 4-4h14" />
+      <path d="m7 22-4-4 4-4" />
+      <path d="M21 13v1a4 4 0 0 1-4 4H3" />
+    </>
+  ),
+  trendUp: (
+    <>
+      <path d="M22 7 13.5 15.5 8.5 10.5 2 17" />
+      <path d="M16 7h6v6" />
+    </>
+  ),
+  trendDown: (
+    <>
+      <path d="M22 17 13.5 8.5 8.5 13.5 2 7" />
+      <path d="M16 17h6v-6" />
+    </>
+  ),
 } satisfies Record<string, ReactNode>
 
 export type IconName = keyof typeof paths

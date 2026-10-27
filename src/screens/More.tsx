@@ -1,18 +1,33 @@
 import { useState, type CSSProperties, type ReactNode } from 'react'
 import { AccountSheet } from '../components/AccountSheet'
 import { Icon } from '../components/Icon'
+import { Equivalent, Money } from '../components/Money'
+import { ReconcileSheet } from '../components/ReconcileSheet'
+import { RecurringSheet } from '../components/RecurringSheet'
 import { Screen } from '../components/Screen'
 import { useI18n, type Lang } from '../i18n'
 import { signOut } from '../lib/auth'
-import { useAccounts, useData, useLatestRate, useSettings } from '../lib/data'
-import type { Account } from '../lib/db'
-import { formatRate, parseRate, rateFormula, rateModeChanges } from '../lib/fx'
-import { formatMoney, normalizeDigits } from '../lib/money'
-import { accountName } from '../lib/names'
+import {
+  useAccounts,
+  useCategories,
+  useData,
+  useDisplayRate,
+  useEntries,
+  useLatestRate,
+  useReconciliations,
+  useRecurring,
+  useRecurringPeriod,
+  useSettings,
+} from '../lib/data'
+import type { Account, Recurring } from '../lib/db'
+import { convert, formatRate, parseRate, rateFormula, rateModeChanges } from '../lib/fx'
+import { balance, driftTrend, formatMoney, formatSigned, normalizeDigits } from '../lib/money'
+import { accountName, iconFor } from '../lib/names'
+import { recurringState } from '../lib/recurring'
 import { updateSettings } from '../lib/store'
 import { showToast } from '../lib/toast'
 import { useToday } from '../lib/useToday'
-import { formatShortDate } from '../i18n/format'
+import { formatShortDate, ltr } from '../i18n/format'
 import styles from './More.module.css'
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -109,15 +124,171 @@ function RateSection() {
   )
 }
 
+/** An amount at the end of a row, with its other-currency value under it (SPEC §5, rate now). */
+function RowAmount({ value, currency, tone, signed }: { value: number; currency: string; tone?: 'in' | 'out'; signed?: boolean }) {
+  const rate = useDisplayRate()
+  return (
+    <span className={styles.rowAmount}>
+      {signed ? (
+        <span className={`num ${styles.signed}`}>{ltr(`${formatSigned(value)} ${currency}`)}</span>
+      ) : (
+        <Money value={value} currency={currency} tone={tone} size="sm" />
+      )}
+      <Equivalent amount={value} currency={currency} rate={rate} />
+    </span>
+  )
+}
+
+/** SPEC §6 More → Recurring: each item with its day, account and state in this plan. */
+function RecurringSection({ onOpen }: { onOpen: (item: Recurring | null) => void }) {
+  const { t, lang } = useI18n()
+  const items = useRecurring()
+  const accounts = useAccounts()
+  const categories = useCategories()
+  const entries = useEntries()
+  const period = useRecurringPeriod()
+  const today = useToday()
+  if (!items || !accounts || !categories || !entries || !period) return null
+
+  return (
+    <Section title={t('more.section.recurring')}>
+      {items.map((r) => {
+        const account = accounts.find((a) => a.id === r.account_id)
+        const category = categories.find((c) => c.id === r.category_id)
+        const s = recurringState(r, period, entries, today)
+        const state =
+          s.state === 'due'
+            ? t('recurring.dueNow')
+            : s.state === 'posted'
+              ? t('recurring.postedOn', { date: formatShortDate(s.date, lang) })
+              : s.state === 'upcoming'
+                ? t('recurring.next', { date: formatShortDate(s.date, lang) })
+                : null
+        const base = [t('recurring.day', { day: r.day_of_month }), account ? accountName(account, t) : null].filter(Boolean).join(' · ')
+        return (
+          <button key={r.id} type="button" className={styles.row} onClick={() => onOpen(r)}>
+            <span className={styles.rowIcon}>
+              <Icon name={iconFor(category?.icon ?? 'dots')} size={20} />
+            </span>
+            <span className={styles.rowStack}>
+              <span className={styles.rowName}>{r.name}</span>
+              <span className={styles.rowHint}>
+                {base}
+                {state && (
+                  <>
+                    {' · '}
+                    <span data-status={s.state === 'due' ? 'warn' : undefined}>{state}</span>
+                  </>
+                )}
+              </span>
+            </span>
+            <RowAmount value={r.amount} currency={account?.currency ?? ''} tone={r.type === 'in' ? 'in' : 'out'} />
+          </button>
+        )
+      })}
+      <button type="button" className={styles.row} onClick={() => onOpen(null)}>
+        <span className={styles.rowIcon}>
+          <Icon name="plus" size={20} />
+        </span>
+        <span className={styles.rowStack}>
+          <span>{t('recurring.add')}</span>
+          {items.length === 0 && <span className={styles.rowHint}>{t('recurring.emptyHint')}</span>}
+        </span>
+      </button>
+    </Section>
+  )
+}
+
+const HISTORY = 10
+
+/** SPEC §6 More → Reconcile: each account's last check and drift; then the trend and the drift history. */
+function ReconcileSection({ onOpen }: { onOpen: (account: Account) => void }) {
+  const { t, lang } = useI18n()
+  const accounts = useAccounts()
+  const entries = useEntries()
+  const checks = useReconciliations()
+  const rate = useDisplayRate()
+  const [showAll, setShowAll] = useState(false)
+  if (!accounts || !entries || !checks) return null
+
+  const byId = new Map(accounts.map((a) => [a.id, a]))
+  const currencyOf = (id: string) => byId.get(id)?.currency ?? ''
+  // USD drift counts at today's rate (display only).
+  const trend = driftTrend(checks, (id, amount) => (currencyOf(id) === 'USD' && rate !== null ? convert(amount, 'USD', rate) : amount))
+  const shown = showAll ? checks : checks.slice(0, HISTORY)
+  const nameOf = (id: string) => {
+    const a = byId.get(id)
+    return a ? accountName(a, t) : '—'
+  }
+
+  return (
+    <>
+      <Section title={t('more.section.reconcile')}>
+        {accounts.map((a) => {
+          const last = checks.find((c) => c.account_id === a.id)
+          return (
+            <button key={a.id} type="button" className={styles.row} onClick={() => onOpen(a)}>
+              <span className={styles.rowIcon}>
+                <Icon name={a.kind === 'bank' ? 'home' : 'wallet'} size={20} />
+              </span>
+              <span className={styles.rowStack}>
+                <span>{accountName(a, t)}</span>
+                <span className={styles.rowHint}>
+                  {last ? t('reconcile.row', { date: formatShortDate(last.date, lang), amount: ltr(formatSigned(last.diff)) }) : t('reconcile.never')}
+                </span>
+              </span>
+              <RowAmount value={balance(a, entries)} currency={a.currency} />
+            </button>
+          )
+        })}
+      </Section>
+
+      {checks.length > 0 && (
+        <Section title={t('more.section.drift')}>
+          {trend && (
+            <div className={styles.row} data-trend={trend.kind}>
+              <span className={styles.rowIcon}>
+                <Icon name={trend.kind === 'growing' ? 'trendUp' : trend.kind === 'shrinking' ? 'trendDown' : 'check'} size={20} />
+              </span>
+              <span className={styles.rowLabel}>
+                {trend.kind === 'growing' ? t('drift.growing', { account: nameOf(trend.mostly) }) : t(`drift.${trend.kind}`)}
+              </span>
+            </div>
+          )}
+          {shown.map((c) => (
+            <div key={c.id} className={`${styles.row} ${styles.compact}`}>
+              <span className={styles.rowStack}>
+                <span>{nameOf(c.account_id)}</span>
+                <span className={styles.rowHint}>{formatShortDate(c.date, lang)}</span>
+              </span>
+              <RowAmount value={c.diff} currency={currencyOf(c.account_id)} signed />
+            </div>
+          ))}
+          {!showAll && checks.length > HISTORY && (
+            <button type="button" className={`${styles.row} ${styles.compact}`} onClick={() => setShowAll(true)}>
+              <span className={styles.rowLabel}>{t('drift.showAll')}</span>
+            </button>
+          )}
+        </Section>
+      )}
+    </>
+  )
+}
+
 export default function More({ email }: { email: string | null }) {
   const { t, lang, setLang } = useI18n()
   const [signingOut, setSigningOut] = useState(false)
   const [editing, setEditing] = useState<Account | null>(null)
+  const [checking, setChecking] = useState<Account | null>(null)
+  const [recurring, setRecurring] = useState<{ item: Recurring | null } | null>(null)
   const accounts = useAccounts() ?? []
   const thumb = { '--i': LANGS.indexOf(lang) } as CSSProperties
 
   return (
     <Screen title={t('more.title')}>
+      <RecurringSection onOpen={(item) => setRecurring({ item })} />
+      <ReconcileSection onOpen={setChecking} />
+
       <Section title={t('more.section.accounts')}>
         {accounts.map((a) => (
           <button key={a.id} type="button" className={styles.row} onClick={() => setEditing(a)}>
@@ -190,6 +361,8 @@ export default function More({ email }: { email: string | null }) {
       </Section>
 
       <AccountSheet account={editing} onClose={() => setEditing(null)} />
+      <ReconcileSheet account={checking} onClose={() => setChecking(null)} />
+      <RecurringSheet open={recurring !== null} item={recurring?.item ?? null} onClose={() => setRecurring(null)} />
       <p className={styles.version}>{t('more.version', { version: __APP_VERSION__ })}</p>
     </Screen>
   )

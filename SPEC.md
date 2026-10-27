@@ -195,6 +195,7 @@ Phase 4 notes (2026-10-27): **Salary received** is the Plan screen's main button
 - Recurring: list + add/edit (name, in/out, amount, account, category, day of month). Due items also surface on Home.
 - Reconcile: per account, last reconcile date + drift; tap → sheet. Drift history list (date, diff) with a one-line trend: "drift shrinking" / "drift growing, mostly Cash".
 - Settings: language, rate mode + manual rate, usual payday, warn %, week start, accounts (name/opening), categories (add/rename/archive, set kind), export JSON, delete all data (typed confirmation).
+Phase 5 notes (2026-10-27): More runs Recurring, Reconcile, then the settings groups. Each recurring row shows its day, account and state in this plan (due now / posted on a date / next on a date). Each Reconcile row shows the account's last check and its drift. The drift history shows the latest 10 checks, with a "Show all" button. The trend line (§7) sits above the history.
 
 ---
 
@@ -220,6 +221,15 @@ Phase 4 rulings (2026-10-27):
 
 **Recurring**:
 - Item is "due" if `day_of_month ≤ today` and no entry with its `recurring_id` exists in the current plan period. Post = create the entry. Skip = nothing (stays due until period ends; acceptable).
+
+Phase 5 rulings (2026-10-27):
+- *Reconcile* is dated today. The actual balance must be typed (empty is not 0) and may be negative (an overdrawn bank). Drift 0 shows green ("matches"); any other drift shows orange with the adjustment Save will make. The adjust entry uses the live category named Other (else the first live non-income category), the note "Reconcile" in the UI language, and the effective rate now. One Undo toast removes both the check and its adjustment.
+- Adjustments only fix balances. Envelopes, safe to spend and the weekly limit count `out` entries only (§5), so an adjustment never moves them.
+- An adjustment opens in History like any entry: its amount keeps its sign (e.g. −35) and can be edited or deleted. Deleting it leaves the check in the drift history.
+- *Drift trend*: for every account with at least two checks, compare the size of its latest drift with the one before (missing and extra money both count; USD at today's rate). Totals equal → "drift steady", smaller → "drift shrinking", larger → "drift growing, mostly Cash" (naming the account with the largest latest drift). If every latest drift is 0 → "last checks matched". With no account checked twice, no trend line.
+- *Recurring due* (asked 2026-10-27): an item falls on its day of the month (short months use their last day) inside the plan's period. That is usually once. It is twice when a plan runs longer than a month (salary early or late), so a bill is never skipped. Each date is due from that day until posted or until the plan ends. A plan's period runs from its start to its payday, or to today while the salary is late. With no plan, the period is the calendar month. Posted entries are live entries with the item's `recurring_id` dated inside the period. The item is due while fewer of them exist than dates already reached.
+- *Post* is one tap: an entry dated today with the item's type, amount, account and category, the item's name as its note, `recurring_id` set and the effective rate now. Undo toast. A bill that came in different is edited in History afterwards. There is no Skip button (skipping = not tapping).
+- Home's Due card sits between the envelopes and today's entries (§6 order). Tapping a balance card opens Reconcile for that account.
 
 **Undo**: Save/Delete/Post show a toast with Undo for 5 s. Undo soft-deletes (or restores) the entry. Toast dismissal is not a sync barrier.
 

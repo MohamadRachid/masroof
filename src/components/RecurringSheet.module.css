@@ -1,0 +1,223 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.label {
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+
+.field input {
+  width: 100%;
+  height: 52px;
+  padding-inline: var(--s-4);
+  border: 0;
+  border-radius: var(--r-2);
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  color: var(--text);
+  font-size: var(--fs-lg);
+}
+
+.field input::placeholder {
+  color: var(--text-3);
+}
+
+.field input:focus-visible,
+.dayInput:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 1.5px var(--text);
+}
+
+.field[data-invalid] input,
+.dayInput[aria-invalid='true'] {
+  box-shadow: inset 0 0 0 1.5px var(--bad);
+}
+
+.amount {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.amount input {
+  padding-inline-end: 56px;
+  font-family: var(--font-num);
+  font-size: var(--fs-xl);
+}
+
+:global([dir='rtl']) .amount input {
+  text-align: right;
+}
+
+.cur {
+  position: absolute;
+  inset-inline-end: var(--s-4);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+
+/* ── Out / In ── */
+.toggle {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-self: center;
+  width: min(260px, 100%);
+  padding: 3px;
+  border-radius: var(--r-full);
+  background: var(--bg);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.thumb {
+  position: absolute;
+  inset-block: 3px;
+  inset-inline-start: 3px;
+  width: calc(50% - 3px);
+  border-radius: var(--r-full);
+  background: var(--surface-3);
+  transform: translateX(0);
+  transition:
+    transform var(--dur-2) var(--ease-in-out),
+    background-color var(--dur-2) ease;
+}
+
+.toggle[data-value='in'] .thumb {
+  background: var(--good-soft);
+  transform: translateX(100%);
+}
+
+:global([dir='rtl']) .toggle[data-value='in'] .thumb {
+  transform: translateX(-100%);
+}
+
+.toggleBtn {
+  position: relative;
+  z-index: 1;
+  height: 38px;
+  border-radius: var(--r-full);
+  color: var(--text-2);
+  font-weight: 500;
+  transition: color var(--dur-2) ease;
+}
+
+.toggleBtn[aria-checked='true'] {
+  color: var(--text);
+}
+
+.toggle[data-value='in'] .toggleBtn[aria-checked='true'] {
+  color: var(--good);
+}
+
+/* ── chips ── */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.scroller {
+  display: flex;
+  gap: var(--s-2);
+  margin-inline: calc(var(--s-5) * -1);
+  padding-inline: var(--s-5);
+  padding-block: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.scroller::-webkit-scrollbar {
+  display: none;
+}
+
+.chip {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding-inline: var(--s-3);
+  border-radius: var(--r-full);
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+  transition:
+    background-color var(--dur-1) ease,
+    color var(--dur-1) ease,
+    transform 160ms var(--ease-out);
+}
+
+.chip:active {
+  transform: scale(0.96);
+}
+
+.chip[aria-checked='true'] {
+  background: var(--primary);
+  box-shadow: none;
+  color: var(--on-primary);
+}
+
+.chipCur {
+  font-size: var(--fs-xs);
+  opacity: 0.7;
+}
+
+/* ── day of the month ── */
+.dayRow {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.dayLabel {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.hint {
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+}
+
+.dayInput {
+  flex: none;
+  width: 72px;
+  height: 52px;
+  border: 0;
+  border-radius: var(--r-2);
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  color: var(--text);
+  font-family: var(--font-num);
+  font-size: var(--fs-xl);
+  text-align: center;
+}
+
+/* ── save ── */
+.footer {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  gap: var(--s-2);
+  margin-block-start: var(--s-1);
+  padding-block-start: var(--s-2);
+  background: var(--surface-1);
+}
+
+.delete {
+  flex: none;
+  color: var(--bad);
+}

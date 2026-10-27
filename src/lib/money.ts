@@ -80,6 +80,11 @@ export function formatMoney(n: number): string {
   return r < 0 ? `−${fmt.format(-r)}` : fmt.format(r)
 }
 
+/** A drift or adjustment: "+34.45" extra, "−35.00" missing, "0.00" none. */
+export function formatSigned(n: number): string {
+  return round2(n) > 0 ? `+${formatMoney(n)}` : formatMoney(n)
+}
+
 // ── Plan math (SPEC §5): envelopes, safe to spend, weekly limit ────────────
 
 export type WeekStatus = 'good' | 'warn' | 'bad'
@@ -305,4 +310,56 @@ export function nextPlanAmounts(
     result[buffer.id] = (base + toCents(buffer.carry)) / 100
   }
   return result
+}
+
+// ── Reconcile (SPEC §7) ───────────────────────────────────────────────────
+
+/** Drift = actual − computed: what the records missed (negative = money gone unrecorded). */
+export function drift(actual: number, computed: number): number {
+  return (toCents(actual) - toCents(computed)) / 100
+}
+
+/** Where a reconcile adjustment goes: the live category named Other, else the first live non-income one. */
+export function adjustCategory<C extends { name_en: string; kind: string; archived: boolean }>(categories: readonly C[]): C | undefined {
+  const live = categories.filter((c) => c.kind !== 'income' && !c.archived)
+  return live.find((c) => c.name_en === 'Other') ?? live[0]
+}
+
+/** Editing an adjustment: its amount keeps its sign; empty or zero is not an adjustment. */
+export function parseAdjustAmount(input: string): number | null {
+  if (input.trim() === '') return null
+  const n = parseSignedAmount(input)
+  return n === null || n === 0 ? null : n
+}
+
+export type DriftTrend = { kind: 'clean' } | { kind: 'steady' } | { kind: 'shrinking' } | { kind: 'growing'; mostly: string }
+
+type Check = { account_id: string; date: string; created_at: string; diff: number; deleted_at: string | null }
+
+/**
+ * SPEC §7 trend: each account's latest drift against the one before, by size (missing and
+ * extra money both count), summed in GHS. null until some account has been checked twice.
+ */
+export function driftTrend(checks: readonly Check[], inGhs: (accountId: string, amount: number) => number): DriftTrend | null {
+  const byAccount = new Map<string, Check[]>()
+  for (const c of checks) {
+    if (c.deleted_at) continue
+    byAccount.set(c.account_id, [...(byAccount.get(c.account_id) ?? []), c])
+  }
+  let latestCents = 0
+  let previousCents = 0
+  let mostly: { account: string; cents: number } | null = null
+  for (const [account, list] of byAccount) {
+    if (list.length < 2) continue
+    list.sort((a, b) => a.date.localeCompare(b.date) || a.created_at.localeCompare(b.created_at))
+    const size = (c: Check | undefined) => Math.abs(toCents(inGhs(account, c?.diff ?? 0)))
+    const latest = size(list[list.length - 1])
+    latestCents += latest
+    previousCents += size(list[list.length - 2])
+    if (!mostly || latest > mostly.cents) mostly = { account, cents: latest }
+  }
+  if (!mostly) return null
+  if (latestCents === 0) return { kind: 'clean' }
+  if (latestCents === previousCents) return { kind: 'steady' }
+  return latestCents < previousCents ? { kind: 'shrinking' } : { kind: 'growing', mostly: mostly.account }
 }

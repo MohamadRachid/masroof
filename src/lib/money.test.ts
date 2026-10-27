@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { balance, formatMoney, parseAmount, parseSignedAmount, round2, toCents } from './money'
+import { adjustCategory, balance, drift, driftTrend, formatMoney, formatSigned, parseAdjustAmount, parseAmount, parseSignedAmount, round2, toCents } from './money'
 
 describe('toCents / round2', () => {
   it('rounds half away from zero at 2 decimals, without float drift', () => {
@@ -98,5 +98,86 @@ describe('parseSignedAmount (opening balances)', () => {
     expect(parseSignedAmount('10000000000000')).toBeNull()
     expect(parseSignedAmount('-10000000000000')).toBeNull()
     expect(parseSignedAmount('--5')).toBeNull()
+  })
+})
+
+describe('reconcile: drift and parseAdjustAmount', () => {
+  it('drift = actual − computed, exact to the cent', () => {
+    expect(drift(100.1, 100.3)).toBe(-0.2)
+    expect(drift(230, 195.55)).toBe(34.45)
+    expect(drift(-20, -20)).toBe(0)
+  })
+
+  it('parseAdjustAmount keeps the sign and rejects empty and zero', () => {
+    expect(parseAdjustAmount('-35')).toBe(-35)
+    expect(parseAdjustAmount('−12.5')).toBe(-12.5)
+    expect(parseAdjustAmount('35')).toBe(35)
+    expect(parseAdjustAmount('')).toBeNull()
+    expect(parseAdjustAmount('0')).toBeNull()
+    expect(parseAdjustAmount('-0.00')).toBeNull()
+    expect(parseAdjustAmount('abc')).toBeNull()
+  })
+})
+
+describe('driftTrend (SPEC §7)', () => {
+  let n = 0
+  const check = (account_id: string, date: string, diff: number, deleted_at: string | null = null) => ({
+    account_id, date, diff, deleted_at, created_at: `2026-10-01T00:00:${String(++n).padStart(2, '0')}Z`,
+  })
+  const inGhs = (accountId: string, amount: number) => (accountId === 'usd' ? amount * 12 : amount)
+
+  it('says nothing until some account was checked twice', () => {
+    expect(driftTrend([], inGhs)).toBeNull()
+    expect(driftTrend([check('cash', '2026-10-01', -50), check('bank', '2026-10-02', 10)], inGhs)).toBeNull()
+  })
+
+  it('shrinking / growing / steady compare each latest drift with the one before', () => {
+    expect(driftTrend([check('cash', '2026-10-01', -50), check('cash', '2026-10-20', -10)], inGhs)).toEqual({ kind: 'shrinking' })
+    expect(driftTrend([check('bank', '2026-10-01', 40), check('bank', '2026-10-20', -40)], inGhs)).toEqual({ kind: 'steady' })
+    const growing = [
+      check('cash', '2026-10-01', -10), check('cash', '2026-10-20', -60),
+      check('bank', '2026-10-02', 5), check('bank', '2026-10-21', 5),
+    ]
+    expect(driftTrend(growing, inGhs)).toEqual({ kind: 'growing', mostly: 'cash' })
+  })
+
+  it('counts USD drift at today’s rate', () => {
+    const checks = [
+      check('usd', '2026-10-01', -1), check('usd', '2026-10-20', -10), // 12 → 120 GHS
+      check('cash', '2026-10-01', -50), check('cash', '2026-10-20', -100),
+    ]
+    expect(driftTrend(checks, inGhs)).toEqual({ kind: 'growing', mostly: 'usd' })
+  })
+
+  it('all latest checks at 0 → clean; an account checked once is left out', () => {
+    const checks = [check('cash', '2026-10-01', -50), check('cash', '2026-10-20', 0), check('bank', '2026-10-21', 90)]
+    expect(driftTrend(checks, inGhs)).toEqual({ kind: 'clean' })
+  })
+
+  it('ignores deleted checks and orders same-day checks by creation', () => {
+    const checks = [
+      check('cash', '2026-10-01', -50),
+      check('cash', '2026-10-20', -5),
+      check('cash', '2026-10-20', -80), // created later the same day: the latest
+      check('cash', '2026-10-25', 0, '2026-10-25T10:00:00Z'),
+    ]
+    expect(driftTrend(checks, inGhs)).toEqual({ kind: 'growing', mostly: 'cash' })
+  })
+})
+
+describe('adjustCategory', () => {
+  const c = (name_en: string, kind = 'variable', archived = false) => ({ id: name_en, name_en, kind, archived })
+  it('is the live Other category, else the first live non-income one', () => {
+    expect(adjustCategory([c('Salary', 'income'), c('Food'), c('Other')])?.id).toBe('Other')
+    expect(adjustCategory([c('Salary', 'income'), c('Other', 'variable', true), c('Food')])?.id).toBe('Food')
+    expect(adjustCategory([c('Salary', 'income')])).toBeUndefined()
+  })
+})
+
+describe('formatSigned (drift)', () => {
+  it('shows + for extra money, a true minus for missing money, none for zero', () => {
+    expect(formatSigned(34.45)).toBe('+34.45')
+    expect(formatSigned(-35)).toBe('−35.00')
+    expect(formatSigned(0)).toBe('0.00')
   })
 })

@@ -3,6 +3,7 @@ import { createContext, useContext, useEffect, useMemo, type ReactNode } from 'r
 import { dbFor, type MasroofDB, type Plan } from './db'
 import { effectiveRate, type EffectiveRate } from './fx'
 import { planStats, type PlanStats } from './money'
+import { recurringPeriod, type Period } from './recurring'
 import type { PlanSnapshot } from './store'
 import { useToday } from './useToday'
 import { INITIAL_PULL_KEY } from './sync'
@@ -96,6 +97,37 @@ export function usePlans() {
 export function useEnvelopes() {
   const { db } = useData()
   return useLiveQuery(() => db.plan_envelopes.filter((e) => !e.deleted_at).toArray(), [db])
+}
+
+/** Live recurring items, by day of the month, then name. */
+export function useRecurring() {
+  const { db } = useData()
+  return useLiveQuery(
+    async () =>
+      (await db.recurring.filter((r) => !r.deleted_at).toArray()).sort(
+        (a, b) => a.day_of_month - b.day_of_month || a.name.localeCompare(b.name),
+      ),
+    [db],
+  )
+}
+
+/** Live balance checks, newest first. */
+export function useReconciliations() {
+  const { db } = useData()
+  return useLiveQuery(
+    async () =>
+      (await db.reconciliations.filter((r) => !r.deleted_at).toArray()).sort(
+        (a, b) => b.date.localeCompare(a.date) || b.created_at.localeCompare(a.created_at),
+      ),
+    [db],
+  )
+}
+
+/** SPEC §7: the period recurring items run in (the open plan, else this month). undefined while loading. */
+export function useRecurringPeriod(): Period | undefined {
+  const plans = usePlans()
+  const today = useToday()
+  return useMemo(() => (plans ? recurringPeriod(plans.find((p) => !p.closed_at) ?? null, today) : undefined), [plans, today])
 }
 
 export type CurrentPlan = { snapshot: PlanSnapshot; stats: PlanStats }

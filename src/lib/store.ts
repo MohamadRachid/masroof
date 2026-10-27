@@ -1,7 +1,7 @@
-import type { Account, Entry, MasroofDB, Plan, PlanEnvelope, Settings } from './db'
+import type { Account, Entry, MasroofDB, Plan, PlanEnvelope, Reconciliation, Recurring, Settings } from './db'
 import { nowISO } from './dates'
 import { isRealRate, rateForDate } from './fx'
-import { round2 } from './money'
+import { balance, drift, round2 } from './money'
 import { queueRows } from './sync'
 
 // Every write: Dexie first, then the outbox (CLAUDE.md). Undo = write the previous version back.
@@ -16,6 +16,8 @@ export type EntryInput = {
   note: string | null
   date: string
   rate_usd_ghs: number
+  /** Set only when posting a recurring item. */
+  recurring_id?: string | null
 }
 
 export async function addEntry(db: MasroofDB, userId: string, input: EntryInput): Promise<Entry> {
@@ -25,8 +27,8 @@ export async function addEntry(db: MasroofDB, userId: string, input: EntryInput)
     id,
     user_id: userId,
     client_id: id,
-    recurring_id: null,
     ...input,
+    recurring_id: input.recurring_id ?? null,
     amount: round2(input.amount),
     note: input.note?.trim() || null,
     created_at: now,
@@ -260,5 +262,111 @@ export async function undoSalary(db: MasroofDB, receipt: SalaryReceipt): Promise
     await deleteEntry(db, receipt.entry)
     if (receipt.closed) await queueRows(db, 'plans', [{ ...receipt.closed.before, updated_at: nowISO() }])
     await undoPlanSave(db, null, receipt.created)
+  })
+}
+
+// ── Reconcile (SPEC §7) ─────────────────────────────────────────────────
+
+export type ReconcileInput = {
+  accountId: string
+  actual: number
+  date: string
+  /** Effective rate now, frozen on the adjustment like on any entry. */
+  rate: number
+  /** The adjustment's category (Other) and note ("Reconcile" in the UI language). */
+  categoryId: string
+  note: string
+}
+
+export type ReconcileReceipt = { check: Reconciliation; adjustment: Entry | null }
+
+/**
+ * Record a check and, when the records drifted, an adjustment for the drift, in one
+ * transaction. The computed balance is read inside it, so afterwards the balance is the actual.
+ */
+export async function reconcile(db: MasroofDB, userId: string, input: ReconcileInput): Promise<ReconcileReceipt> {
+  return db.transaction('rw', [db.accounts, db.entries, db.reconciliations, db.outbox], async () => {
+    const account = await db.accounts.get(input.accountId)
+    if (!account) throw new Error(`No account ${input.accountId}`)
+    const computed = balance(account, await db.entries.where('account_id').equals(account.id).toArray())
+    const actual = round2(input.actual)
+    const diff = drift(actual, computed)
+    const now = nowISO()
+    const check: Reconciliation = {
+      id: crypto.randomUUID(),
+      user_id: userId,
+      date: input.date,
+      account_id: account.id,
+      actual,
+      computed,
+      diff,
+      created_at: now,
+      updated_at: now,
+      deleted_at: null,
+    }
+    await queueRows(db, 'reconciliations', [check])
+    const adjustment =
+      diff === 0
+        ? null
+        : await addEntry(db, userId, {
+            type: 'adjust',
+            amount: diff,
+            account_id: account.id,
+            category_id: input.categoryId,
+            note: input.note,
+            date: input.date,
+            rate_usd_ghs: input.rate,
+          })
+    return { check, adjustment }
+  })
+}
+
+/** Undo a check: remove it and its adjustment. */
+export async function undoReconcile(db: MasroofDB, receipt: ReconcileReceipt): Promise<void> {
+  await db.transaction('rw', [db.entries, db.reconciliations, db.outbox], async () => {
+    const now = nowISO()
+    await queueRows(db, 'reconciliations', [{ ...receipt.check, deleted_at: now, updated_at: now }])
+    if (receipt.adjustment) await deleteEntry(db, receipt.adjustment)
+  })
+}
+
+// ── Recurring (SPEC §6 More, §7) ────────────────────────────────────────
+
+export type RecurringDraft = Pick<Recurring, 'name' | 'type' | 'amount' | 'account_id' | 'category_id' | 'day_of_month'>
+
+/** Create an item, or edit one (it keeps its id, so entries already posted still point at it). */
+export async function saveRecurring(db: MasroofDB, userId: string, existing: Recurring | null, draft: RecurringDraft): Promise<Recurring> {
+  const now = nowISO()
+  const fields = { ...draft, name: draft.name.trim(), amount: round2(draft.amount) }
+  const item: Recurring = existing
+    ? { ...existing, ...fields, updated_at: now }
+    : { id: crypto.randomUUID(), user_id: userId, ...fields, created_at: now, updated_at: now, deleted_at: null }
+  await queueRows(db, 'recurring', [item])
+  return item
+}
+
+export async function deleteRecurring(db: MasroofDB, item: Recurring): Promise<Recurring> {
+  const now = nowISO()
+  const deleted: Recurring = { ...item, deleted_at: now, updated_at: now }
+  await queueRows(db, 'recurring', [deleted])
+  return deleted
+}
+
+/** Put a previous version back: undo for edit and delete. */
+export async function restoreRecurring(db: MasroofDB, snapshot: Recurring): Promise<void> {
+  await queueRows(db, 'recurring', [{ ...snapshot, updated_at: nowISO() }])
+}
+
+/** Post = an ordinary entry from the item, named after it and pointing at it (SPEC §7). */
+export async function postRecurring(db: MasroofDB, userId: string, item: Recurring, at: { date: string; rate: number }): Promise<Entry> {
+  return addEntry(db, userId, {
+    type: item.type as EntryType,
+    amount: item.amount,
+    account_id: item.account_id,
+    category_id: item.category_id,
+    note: item.name,
+    date: at.date,
+    rate_usd_ghs: at.rate,
+    recurring_id: item.id,
   })
 }

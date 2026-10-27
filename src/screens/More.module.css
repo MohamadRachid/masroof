@@ -179,3 +179,41 @@ button.row:active:not(:disabled) {
 .rateSave:disabled {
   opacity: 0.38;
 }
+
+/* ── Recurring + Reconcile rows (phase 5) ── */
+.rowName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowHint [data-status='warn'] {
+  color: var(--warn);
+}
+
+.rowAmount {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+}
+
+.signed {
+  font-size: var(--fs-sm);
+}
+
+.compact {
+  min-height: 52px;
+}
+
+.row[data-trend='shrinking'] .rowIcon,
+.row[data-trend='clean'] .rowIcon {
+  background: var(--good-soft);
+  color: var(--good);
+}
+
+.row[data-trend='growing'] .rowIcon {
+  background: var(--warn-soft);
+  color: var(--warn);
+}

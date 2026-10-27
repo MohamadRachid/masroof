@@ -1,0 +1,96 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.computed {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-1);
+  padding-block: var(--s-1) var(--s-2);
+  text-align: center;
+}
+
+.label {
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+
+.last {
+  margin-block-start: var(--s-1);
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.amount {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.amount input {
+  width: 100%;
+  height: 56px;
+  padding-inline: var(--s-4) 56px;
+  border: 0;
+  border-radius: var(--r-2);
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  color: var(--text);
+  font-family: var(--font-num);
+  font-size: var(--fs-xl);
+}
+
+.amount input::placeholder {
+  color: var(--text-3);
+}
+
+.amount input:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 1.5px var(--text);
+}
+
+.field[data-invalid] .amount input {
+  box-shadow: inset 0 0 0 1.5px var(--bad);
+}
+
+:global([dir='rtl']) .amount input {
+  text-align: right;
+}
+
+.cur {
+  position: absolute;
+  inset-inline-end: var(--s-4);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+
+/* Live drift: green when it matches, orange when Save will adjust. */
+.drift {
+  min-height: 2.6em;
+  margin-block-start: calc(var(--s-2) * -1);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  transition: color var(--dur-2) ease;
+}
+
+.drift[data-status='good'] {
+  color: var(--good);
+}
+
+.drift[data-status='warn'] {
+  color: var(--warn);
+}
+
+.problem {
+  color: var(--bad);
+  font-size: var(--fs-sm);
+}

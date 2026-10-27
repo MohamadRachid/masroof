@@ -1,21 +1,38 @@
 import { useEffect, useState } from 'react'
+import { DueRow } from '../components/DueRow'
 import { EntryRow } from '../components/EntryRow'
 import { EnvelopeRow } from '../components/EnvelopeRow'
 import { Icon } from '../components/Icon'
 import { Equivalent, Money } from '../components/Money'
 import { Progress } from '../components/Progress'
 import { RateLine } from '../components/RateLine'
+import { ReconcileSheet } from '../components/ReconcileSheet'
 import { SalarySheet } from '../components/SalarySheet'
 import { Screen } from '../components/Screen'
 import { useI18n } from '../i18n'
 import { formatLongDate, formatShortDate, ltr } from '../i18n/format'
-import { useAccounts, useCategories, useCurrentPlan, useDisplayRate, useEntries, usePlans, useSettings } from '../lib/data'
+import {
+  useAccounts,
+  useCategories,
+  useCurrentPlan,
+  useData,
+  useDisplayRate,
+  useEffectiveRate,
+  useEntries,
+  usePlans,
+  useRecurring,
+  useRecurringPeriod,
+  useSettings,
+} from '../lib/data'
 import { lastPayday, parseLocalDate, salaryDue } from '../lib/dates'
-import type { Entry } from '../lib/db'
+import type { Account, Entry, Recurring } from '../lib/db'
 import { groupByDay } from '../lib/entries'
 import { balance, formatMoney, type PlanStats, type WeekStatus } from '../lib/money'
 import { accountName } from '../lib/names'
+import { dueItems } from '../lib/recurring'
 import { goTab } from '../lib/router'
+import { deleteEntry, postRecurring } from '../lib/store'
+import { showToast } from '../lib/toast'
 import { useToday } from '../lib/useToday'
 import styles from './Home.module.css'
 
@@ -29,13 +46,40 @@ export default function Home({ onOpenEntry }: { onOpenEntry: (entry: Entry) => v
   const current = useCurrentPlan()
   const settings = useSettings()
   const plans = usePlans()
+  const recurring = useRecurring()
+  const period = useRecurringPeriod()
+  const effective = useEffectiveRate()
+  const { db, userId } = useData()
   const [salaryOpen, setSalaryOpen] = useState(false)
+  const [checking, setChecking] = useState<Account | null>(null)
+  const [posting, setPosting] = useState<ReadonlySet<string>>(new Set())
   useStatusGlow(current?.stats.week.status ?? null)
-  if (!accounts || !categories || !entries || current === undefined || !plans) return null
+  if (!accounts || !categories || !entries || current === undefined || !plans || !recurring || !period) return null
 
   // SPEC §7 payday nudge: a tap opens Salary received; nothing is recorded on its own.
   const payday = settings?.usual_payday ?? 25
-  const due = salaryDue(today, payday, plans.map((p) => p.start_date))
+  const salaryNudge = salaryDue(today, payday, plans.map((p) => p.start_date))
+  // SPEC §7 Recurring: due items wait for a tap; an item whose account or category is gone can't be posted.
+  const postable = recurring.filter((r) => accounts.some((a) => a.id === r.account_id) && categories.some((c) => c.id === r.category_id))
+  const due = dueItems(postable, period, entries, today)
+
+  async function post(item: Recurring) {
+    if (posting.has(item.id)) return
+    setPosting((s) => new Set(s).add(item.id))
+    try {
+      const entry = await postRecurring(db, userId, item, { date: today, rate: effective?.rate ?? 1 })
+      showToast({
+        message: t('toast.posted', { name: item.name, amount: formatMoney(item.amount), currency: accounts?.find((a) => a.id === item.account_id)?.currency ?? '' }),
+        action: { label: t('toast.undo'), run: () => void deleteEntry(db, entry) },
+      })
+    } finally {
+      setPosting((s) => {
+        const next = new Set(s)
+        next.delete(item.id)
+        return next
+      })
+    }
+  }
 
   const currencyOf = (id: string) => accounts.find((a) => a.id === id)?.currency ?? ''
   const todayGroup = groupByDay(
@@ -45,7 +89,7 @@ export default function Home({ onOpenEntry }: { onOpenEntry: (entry: Entry) => v
 
   return (
     <Screen title={t('home.title')} subtitle={formatLongDate(parseLocalDate(today), lang)}>
-      {due && (
+      {salaryNudge && (
         <button type="button" className={styles.planCard} data-tone="payday" onClick={() => setSalaryOpen(true)}>
           <span className={styles.planIcon}>
             <Icon name="wallet" size={22} />
@@ -86,12 +130,14 @@ export default function Home({ onOpenEntry }: { onOpenEntry: (entry: Entry) => v
         {accounts.map((a) => {
           const value = balance(a, entries)
           return (
-            <div key={a.id} className={styles.balance}>
+            // SPEC §6: tap a card → Reconcile that account.
+            <button key={a.id} type="button" className={styles.balance} onClick={() => setChecking(a)}>
               <span className={styles.balanceName}>{accountName(a, t)}</span>
               <Money value={value} currency={a.currency} size="xl" />
               {/* Balances use the effective rate now (SPEC §5). */}
               <Equivalent amount={value} currency={a.currency} rate={rate} />
-            </div>
+              <span className="visually-hidden">{t('home.checkBalance')}</span>
+            </button>
           )
         })}
       </section>
@@ -109,6 +155,30 @@ export default function Home({ onOpenEntry }: { onOpenEntry: (entry: Entry) => v
           </span>
           <Icon name="chevron" size={18} />
         </button>
+      )}
+
+      {due.length > 0 && (
+        <section className={styles.today} aria-labelledby="home-due">
+          <div className={styles.todayHead}>
+            <h2 id="home-due" className={styles.sectionTitle}>
+              {t('home.due')}
+            </h2>
+          </div>
+          <div className={styles.list}>
+            {due.map(({ item, date }) => (
+              <DueRow
+                key={item.id}
+                item={item}
+                date={date}
+                today={today}
+                category={categories.find((c) => c.id === item.category_id)}
+                account={accounts.find((a) => a.id === item.account_id)}
+                busy={posting.has(item.id)}
+                onPost={() => void post(item)}
+              />
+            ))}
+          </div>
+        </section>
       )}
 
       <section className={styles.today}>
@@ -144,6 +214,7 @@ export default function Home({ onOpenEntry }: { onOpenEntry: (entry: Entry) => v
 
       <RateLine />
       <SalarySheet open={salaryOpen} onClose={() => setSalaryOpen(false)} />
+      <ReconcileSheet account={checking} onClose={() => setChecking(null)} />
     </Screen>
   )
 }

@@ -6,7 +6,7 @@ import { localDateISO, relativeDay } from '../lib/dates'
 import type { Account, Category, Entry } from '../lib/db'
 import { lastUsed, quickTiles, type QuickTile } from '../lib/entries'
 import { effectiveRate, formatRate, isRealRate, rateFormula } from '../lib/fx'
-import { formatMoney, impactOf, normalizeDigits, parseAmount, round2, type PlanStats } from '../lib/money'
+import { formatMoney, impactOf, normalizeDigits, parseAdjustAmount, parseAmount, round2, type PlanStats } from '../lib/money'
 import { accountName, categoryName, iconFor } from '../lib/names'
 import { addEntry, deleteEntry, restoreEntry, updateEntry, type EntryType } from '../lib/store'
 import { showToast } from '../lib/toast'
@@ -125,7 +125,8 @@ function EntryForm({
     categoryRow.current?.querySelector('[aria-checked="true"]')?.scrollIntoView({ block: 'nearest', inline: 'center' })
   }, [type])
 
-  const amount = parseAmount(amountText)
+  // An adjustment keeps its sign (a reconcile can take money off); in/out amounts are always positive.
+  const amount = type === 'adjust' ? parseAdjustAmount(amountText) : parseAmount(amountText)
   const account = accounts.find((a) => a.id === accountId)
   const category = categories.find((c) => c.id === categoryId)
   const valid = amount !== null && !!account && !!category

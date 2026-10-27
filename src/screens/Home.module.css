@@ -21,7 +21,24 @@
 
 /* Big balances shrink to fit their card instead of spilling out. */
 .balance {
+  position: relative;
   container-type: inline-size;
+  width: 100%;
+  text-align: start;
+  transition:
+    box-shadow var(--dur-2) ease,
+    transform 160ms var(--ease-out);
+}
+
+/* A tap opens Reconcile (SPEC §6). */
+.balance:active {
+  transform: scale(0.97);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .balance:hover {
+    box-shadow: inset 0 0 0 1px var(--line-strong);
+  }
 }
 
 .balance > span[data-size='xl'] {
