@@ -26,6 +26,14 @@
 3. **Runner:** `requireSession()` guard in `supabaseRemote`.
 4. **Verify + ship:** typecheck, tests, build; preview build at 390 px: load, go offline, reload, add an entry, back online → outbox flushes (requests to Supabase intercepted, never sent). Fresh review, deploy, PROGRESS, manual checklist for Ali.
 
+## Review round (2026-10-27)
+A fresh reviewer confirmed the core (nothing leaves the outbox unless accepted or refused with 22/23) and found:
+- Refused rows still diverged (a refused new row stayed only on this device; children cascade with 23503). Now `Remote.getRows` fetches the server copies before the outbox lets go: copy back, or remove a row the server never had; a toast says how many were undone. Replaces the full-table re-read, which was costly and could stall later tables on a weak connection.
+- Two tabs syncing at once could land an older version last → Web Lock around each sync run.
+- Offset paging could skip a row when the other device edits mid-pull → keyset paging (`pageThrough`), tested; PostgREST accepted the quoted `or()` filter.
+- `requireSession` didn't control the token sent → the checked token goes out as the Authorization header.
+- Not done: a richer stuck-queue display (error code, age, tap to retry). The "n unsynced" chip stays visible while anything is queued.
+
 ## Review Focus
 1. Can any code path still remove an outbox row without the server having accepted it, apart from 22/23 rejections?
 2. Can a pull without a session still mark the initial pull done?

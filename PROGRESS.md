@@ -4,3 +4,4 @@ Phase 2 — FX display: deployed (2026-10-26) · daily rate via fx-daily + pg_cr
 Phase 3 — Plan: deployed (2026-10-26) · envelopes, safe to spend, weekly limit, live impact
 Phase 4 — Salary flow: deployed (2026-10-27) · salary received, month close, leftover (savings/buffer/ignore), payday nudge
 Phase 5 — Trust: deployed (2026-10-27) · reconcile + adjustment + drift history, recurring + due card
+Phase 6 — Offline: deployed (2026-10-27) · no offline change dropped (sync needs a login; only data errors are final), devices converge, one tab syncs at a time · real phone + laptop check by Ali pending

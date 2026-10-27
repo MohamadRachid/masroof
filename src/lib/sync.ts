@@ -7,6 +7,8 @@ export interface Remote {
   upsert(table: SyncedTable, rows: Row[]): Promise<void>
   /** Rows with updated_at > since (all rows when since is null), oldest first. */
   pullSince(table: SyncedTable, since: string | null): Promise<Row[]>
+  /** The server's current copies of these rows; a key it never had is simply missing. */
+  getRows(table: SyncedTable, keys: string[]): Promise<Row[]>
 }
 
 export const INITIAL_PULL_KEY = 'initialPullDone'
@@ -65,6 +67,7 @@ export async function push(db: MasroofDB, remote: Remote): Promise<PushResult> {
     const group = byTable.get(table)
     if (!group) continue
     const { latest, seqs } = group
+    const refused: string[] = []
     if (!READ_ONLY_TABLES.has(table)) {
       const rows = [...latest.values()]
       try {
@@ -74,7 +77,6 @@ export async function push(db: MasroofDB, remote: Remote): Promise<PushResult> {
         if (!isPermanent(err)) throw err
         // One bad row must not block the rest forever: send them one by one and set aside
         // the ones the server rejects.
-        let rejectedHere = false
         for (const item of rows) {
           try {
             await remote.upsert(table, [toServer(item.row)])
@@ -82,19 +84,61 @@ export async function push(db: MasroofDB, remote: Remote): Promise<PushResult> {
           } catch (rowErr) {
             if (!isPermanent(rowErr)) throw rowErr
             console.warn(`server rejected ${table} ${item.key}`, rowErr)
-            result.rejected.push(item.key)
-            rejectedHere = true
+            refused.push(item.key)
           }
         }
-        // The server's copy of a rejected row may be older than the cursor: re-read the whole
-        // table on the next pull (the same sync), so this device matches the server again.
-        if (rejectedHere) await db.meta.delete(cursorKey(table))
       }
     }
+    // Fetch the server's copies before letting go of anything: if that fails, the table stays queued.
+    const serverCopies = refused.length > 0 ? await remote.getRows(table, refused) : []
     // Only the items read above; anything queued meanwhile stays for the next push.
     await db.outbox.bulkDelete(seqs)
+    if (refused.length > 0) {
+      await matchServer(db, table, refused, serverCopies)
+      result.rejected.push(...refused)
+    }
   }
   return result
+}
+
+/**
+ * Refused rows: put the server's copy back, or remove a row the server never had (its
+ * children are refused next, 23503, and go the same way), so this device matches the server.
+ * A newer local change queued meanwhile is kept and pushed next time.
+ */
+async function matchServer(db: MasroofDB, table: SyncedTable, keys: string[], serverCopies: Row[]): Promise<void> {
+  const byKey = new Map(serverCopies.map((r) => [keyOf(table, r), r]))
+  await db.transaction('rw', db.tableOf(table), db.outbox, async () => {
+    const pending = new Set((await db.outbox.where('table').equals(table).toArray()).map((i) => i.key))
+    for (const key of keys) {
+      if (pending.has(key)) continue
+      const copy = byKey.get(key)
+      if (copy) await db.tableOf(table).put(copy)
+      else await db.tableOf(table).delete(key)
+    }
+  })
+}
+
+export type PageCursor = { updated_at: string; key: string }
+
+/**
+ * Keyset paging on (updated_at, key): each page starts after the last row seen. Offset paging
+ * would skip a row whenever the other device edits one mid-pull (the edited row moves to the end).
+ */
+export async function pageThrough(
+  pageSize: number,
+  keyOfRow: (row: Row) => string,
+  fetchPage: (after: PageCursor | null) => Promise<Row[]>,
+): Promise<Row[]> {
+  const out: Row[] = []
+  let after: PageCursor | null = null
+  for (;;) {
+    const rows = await fetchPage(after)
+    out.push(...rows)
+    const last = rows[rows.length - 1]
+    if (!last || rows.length < pageSize) return out
+    after = { updated_at: String(last.updated_at), key: keyOfRow(last) }
+  }
 }
 
 /** Push, then pull even if the push failed, so one device's trouble never stops the other's changes arriving. */

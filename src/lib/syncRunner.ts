@@ -3,7 +3,7 @@ import { useSyncExternalStore } from 'react'
 import { keyColumn, type MasroofDB, type Row } from './db'
 import { supabase } from './supabase'
 import { repairPlaceholderRates } from './store'
-import { syncEvents, syncOnce, type Remote } from './sync'
+import { pageThrough, syncEvents, syncOnce, type Remote } from './sync'
 
 const PAGE = 1000
 const PUSH_DELAY_MS = 400
@@ -15,34 +15,45 @@ const client = supabase as unknown as SupabaseClient
 /**
  * Never talk to the server as the anonymous role. When the stored login has expired and the
  * refresh fails (offline, flaky network), supabase-js sends the request with the public key
- * instead: RLS refuses pushes and pulls come back empty. Wait for a real session (SPEC §8).
+ * instead: RLS refuses pushes and pulls come back empty. Wait for a real session, and send
+ * exactly the token checked here (supabase-js keeps an Authorization header it is given).
  */
-async function requireSession(): Promise<void> {
+async function bearer(): Promise<string> {
   const { data } = await supabase.auth.getSession()
   if (!data.session) throw Object.assign(new Error('No signed-in session yet; sync will retry'), { code: 'NO_SESSION' })
+  return `Bearer ${data.session.access_token}`
 }
+
+/** A PostgREST value inside an or() filter, quoted (timestamps hold ':' '.' '+'). */
+const quoted = (v: string) => `"${v.replace(/"/g, '\\"')}"`
 
 export const supabaseRemote: Remote = {
   async upsert(table, rows) {
-    await requireSession()
-    const { error } = await client.from(table).upsert(rows, { onConflict: keyColumn(table) })
+    const auth = await bearer()
+    const { error } = await client.from(table).upsert(rows, { onConflict: keyColumn(table) }).setHeader('Authorization', auth)
     if (error) throw error
   },
   async pullSince(table, since) {
-    await requireSession()
-    const out: Row[] = []
-    for (let from = 0; ; from += PAGE) {
-      let query = client.from(table).select('*')
-      if (since) query = query.gt('updated_at', since)
-      const { data, error } = await query
-        .order('updated_at')
-        .order(keyColumn(table))
-        .range(from, from + PAGE - 1)
+    const auth = await bearer()
+    const key = keyColumn(table)
+    return pageThrough(PAGE, (r) => String(r[key]), async (after) => {
+      let query = client.from(table).select('*').setHeader('Authorization', auth)
+      if (after) {
+        const t = quoted(after.updated_at)
+        query = query.or(`updated_at.gt.${t},and(updated_at.eq.${t},${key}.gt.${quoted(after.key)})`)
+      } else if (since) {
+        query = query.gt('updated_at', since)
+      }
+      const { data, error } = await query.order('updated_at').order(key).limit(PAGE)
       if (error) throw error
-      const rows = (data ?? []) as Row[]
-      out.push(...rows)
-      if (rows.length < PAGE) return out
-    }
+      return (data ?? []) as Row[]
+    })
+  },
+  async getRows(table, keys) {
+    const auth = await bearer()
+    const { data, error } = await client.from(table).select('*').in(keyColumn(table), keys).setHeader('Authorization', auth)
+    if (error) throw error
+    return (data ?? []) as Row[]
   },
 }
 
@@ -63,6 +74,11 @@ export function useSyncFailed(): boolean {
     },
     () => status.failed,
   )
+}
+
+/** Run under a Web Lock shared by every tab of this app (where the browser has them). */
+function oneTabAtATime(name: string, fn: () => Promise<void>): Promise<void> {
+  return 'locks' in navigator ? navigator.locks.request(name, fn) : fn()
 }
 
 let runNow: (() => void) | null = null
@@ -91,10 +107,14 @@ export function startSync(db: MasroofDB, remote: Remote = supabaseRemote): () =>
         setStatus({ failed: true })
         return
       }
-      const { ok, pulled } = await syncOnce(db, remote)
-      setStatus({ failed: !ok })
-      // Entries saved before any rate existed get their day's rate — only on fresh data.
-      if (pulled) await repairPlaceholderRates(db).catch((err: unknown) => console.warn('rate repair failed', err))
+      // One tab at a time: two tabs pushing the same outbox at once can land an older version last.
+      await oneTabAtATime(`masroof-sync:${db.name}`, async () => {
+        const { ok, pulled, rejected } = await syncOnce(db, remote)
+        setStatus({ failed: !ok })
+        if (rejected.length > 0) syncEvents.dispatchEvent(new CustomEvent<number>('rejected', { detail: rejected.length }))
+        // Entries saved before any rate existed get their day's rate — only on fresh data.
+        if (pulled) await repairPlaceholderRates(db).catch((err: unknown) => console.warn('rate repair failed', err))
+      })
     } finally {
       running = false
       if (again) {

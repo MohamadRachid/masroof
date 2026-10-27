@@ -1,6 +1,8 @@
 import { useEffect, useState, type MouseEvent, type ReactNode } from 'react'
 import { useI18n, type MsgKey } from '../i18n'
 import { goTab, navigate, type Route } from '../lib/router'
+import { syncEvents } from '../lib/sync'
+import { showToast } from '../lib/toast'
 import { LogoMark, Wordmark } from './Brand'
 import { Button } from './Button'
 import { Icon, type IconName } from './Icon'
@@ -39,6 +41,13 @@ export function Shell({ route, children }: { route: Route; children: ReactNode }
   useEffect(() => {
     window.scrollTo(0, 0)
   }, [route])
+
+  // SPEC §8: rows the server refused were set back to the server's version here; say so.
+  useEffect(() => {
+    const onRejected = (e: Event) => showToast({ message: t('sync.rejected', { count: (e as CustomEvent<number>).detail }) })
+    syncEvents.addEventListener('rejected', onRejected)
+    return () => syncEvents.removeEventListener('rejected', onRejected)
+  }, [t])
 
   const link = (tab: Tab, className: string | undefined, iconClass?: string) => (
     <a

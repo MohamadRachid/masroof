@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto'
 import { describe, expect, it } from 'vitest'
 import { MasroofDB, type Row } from './db'
-import { INITIAL_PULL_KEY, pull, push, queueRows, syncOnce, type Remote } from './sync'
+import { INITIAL_PULL_KEY, pageThrough, pull, push, queueRows, syncOnce, type Remote } from './sync'
 
 let dbCount = 0
 const freshDb = () => new MasroofDB(`test_${++dbCount}_${Date.now()}`)
@@ -21,6 +21,7 @@ function fakeServer() {
   let fail = false
   const rejected = new Map<string, string>()
   let duringUpsert: (() => Promise<void>) | null = null
+  let getRowsFails = false
   const remote: Remote = {
     async upsert(table, rows) {
       if (fail) throw new Error('offline')
@@ -34,6 +35,13 @@ function fakeServer() {
       return [...(tables.get(table)?.values() ?? [])]
         .filter((r) => !since || String(r.updated_at) > since)
         .sort((a, b) => (String(a.updated_at) < String(b.updated_at) ? -1 : 1))
+    },
+    async getRows(table, keys) {
+      if (getRowsFails) throw new Error('offline')
+      return keys.flatMap((k): Row[] => {
+        const row = tables.get(table)?.get(k)
+        return row ? [row] : []
+      })
     },
   }
   return {
@@ -49,6 +57,7 @@ function fakeServer() {
       tables.set(table, t)
     },
     onUpsert: (fn: () => Promise<void>) => (duringUpsert = fn),
+    failGetRows: (v: boolean) => (getRowsFails = v),
   }
 }
 
@@ -185,6 +194,7 @@ describe('robustness', () => {
       pullSince: async () => {
         throw new Error('offline')
       },
+      getRows: async () => [],
     }
     const result = await syncOnce(db, failing)
     expect(result).toMatchObject({ ok: false, pulled: false })
@@ -272,6 +282,7 @@ describe('offline hardening (SPEC §8, phase 6)', () => {
     const remote: Remote = {
       upsert: () => Promise.reject(noSession),
       pullSince: () => Promise.reject(noSession),
+      getRows: () => Promise.reject(noSession),
     }
 
     const result = await syncOnce(db, remote)
@@ -290,6 +301,7 @@ describe('two devices (SPEC §10 phase 6)', () => {
     const remote: Remote = {
       upsert: (table, rows) => (online ? server.remote.upsert(table, rows) : offline()),
       pullSince: (table, since) => (online ? server.remote.pullSince(table, since) : offline()),
+      getRows: (table, keys) => (online ? server.remote.getRows(table, keys) : offline()),
     }
     return { db, sync: () => syncOnce(db, remote), setOnline: (v: boolean) => (online = v) }
   }
@@ -351,5 +363,86 @@ describe('two devices (SPEC §10 phase 6)', () => {
 
     expect((await phone.db.entries.get('food'))?.note).toBe('phone')
     expect((await laptop.db.entries.get('food'))?.note).toBe('phone')
+  })
+})
+
+describe('rows the server refuses (SPEC §8, phase 6)', () => {
+  it('a refused new row the server never had is removed here, so both devices match', async () => {
+    const db = freshDb()
+    const server = fakeServer()
+    server.reject('bad', '23514')
+    await queueRows(db, 'entries', [entry('good', 1), entry('bad', 0)])
+
+    const result = await push(db, server.remote)
+
+    expect(result.rejected).toEqual(['bad'])
+    expect(await db.entries.get('bad')).toBeUndefined()
+    expect(await db.entries.get('good')).toBeTruthy()
+    expect(await db.outbox.count()).toBe(0)
+  })
+
+  it('a newer local change queued during the push is kept, and stays queued', async () => {
+    const db = freshDb()
+    const server = fakeServer()
+    server.reject('bad', '23514')
+    await queueRows(db, 'entries', [entry('good', 1), entry('bad', 0)])
+    // While the push runs, Ali fixes the bad row.
+    server.onUpsert(async () => {
+      server.onUpsert(async () => {})
+      await queueRows(db, 'entries', [entry('bad', 5)])
+    })
+
+    await push(db, server.remote)
+
+    expect((await db.entries.get('bad'))?.amount).toBe(5)
+    expect((await db.outbox.toArray()).map((i) => i.key)).toEqual(['bad'])
+  })
+
+  it('a refused parent takes its children with it (23503), on this device too', async () => {
+    const db = freshDb()
+    const server = fakeServer()
+    server.reject('acc1', '23514')
+    server.reject('e1', '23503')
+    await queueRows(db, 'accounts', [{ id: 'acc1', user_id: 'u1', name: 'Bad', updated_at: 'x', deleted_at: null }])
+    await queueRows(db, 'entries', [entry('e1', 3, { account_id: 'acc1' })])
+
+    const result = await push(db, server.remote)
+
+    expect(result.rejected).toEqual(['acc1', 'e1'])
+    expect(await db.accounts.get('acc1')).toBeUndefined()
+    expect(await db.entries.get('e1')).toBeUndefined()
+  })
+
+  it('if the server copy can’t be fetched, the whole table stays queued (nothing lost)', async () => {
+    const db = freshDb()
+    const server = fakeServer()
+    server.reject('bad', '23514')
+    server.failGetRows(true)
+    await queueRows(db, 'entries', [entry('good', 1), entry('bad', 0)])
+
+    await expect(push(db, server.remote)).rejects.toThrow('offline')
+
+    expect(await db.outbox.count()).toBe(2)
+    expect(await db.entries.get('bad')).toBeTruthy()
+  })
+})
+
+describe('pageThrough (keyset paging)', () => {
+  it('asks for each next page after the last row seen, so an edit mid-pull hides nothing', async () => {
+    // Server rows ordered by (updated_at, id); "b" is edited between the first and second page.
+    let rows: Row[] = ['a', 'b', 'c', 'd', 'e'].map((id, i) => ({ id, updated_at: `t${i}` }))
+    const asked: (string | null)[] = []
+    const fetchPage = async (after: { updated_at: string; key: string } | null) => {
+      asked.push(after ? `${after.updated_at}/${after.key}` : null)
+      if (asked.length === 2) rows = [...rows.filter((r) => r.id !== 'b'), { id: 'b', updated_at: 't9' }]
+      return rows
+        .filter((r) => !after || String(r.updated_at) > after.updated_at || (r.updated_at === after.updated_at && String(r.id) > after.key))
+        .slice(0, 2)
+    }
+
+    const got = await pageThrough(2, (r) => String(r.id), fetchPage)
+
+    expect(asked).toEqual([null, 't1/b', 't3/d', 't9/b'])
+    expect(new Set(got.map((r) => r.id))).toEqual(new Set(['a', 'b', 'c', 'd', 'e']))
   })
 })

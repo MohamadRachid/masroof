@@ -247,7 +247,9 @@ Phase 5 rulings (2026-10-27):
 Phase 6 hardening (2026-10-27):
 - Sync never talks to the server without a signed-in session. If the login can't be refreshed (offline, flaky network), supabase-js would otherwise send the request with only the public key, and the server would refuse the rows. In that case nothing is pushed or pulled and the outbox waits.
 - Only data errors count as permanent (Postgres classes 22 and 23: a bad value, a broken check, a missing parent). Permission, login and schema errors keep the rows queued and are retried; the "n unsynced" chip stays until they go through. An offline change is never dropped because of a login problem.
-- A row the server permanently rejects is set aside. The device then re-reads that table in full on the same sync, so its copy matches the server again: a rejected edit is reverted, and a rejected new row stays only on this device.
+- A row the server permanently rejects is set back to the server's copy. A refused edit is reverted. A refused new row the server never had is removed from this device, and its children (refused next for their missing parent) go the same way. Balances on the two devices therefore never disagree. A toast says how many changes were undone. If the server copy can't be fetched, the whole table stays queued. A newer local change to the same row is kept and pushed next time.
+- Only one tab syncs at a time (a Web Lock), so two tabs can't land an older version last.
+- Pulls page by "after the last row seen" (updated_at, id), not by offset, so an edit on the other device mid-pull can't push a row out of view.
 - The two-device check is automated (two local databases sharing one fake server: offline phone, online laptop, reconnect, deletes, same-row edits) and done once by hand on the real phone and laptop.
 
 ---

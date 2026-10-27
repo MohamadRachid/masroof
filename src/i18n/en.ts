@@ -121,6 +121,7 @@ export const en = {
   'accountSheet.save': 'Save',
   'sync.pending': '{count} unsynced',
   'sync.offline': 'Offline',
+  'sync.rejected': 'The server refused {count} change(s), so they were undone on this device.',
 
   'fx.line': '1 USD = {rate} GHS',
   'fx.auto': 'daily',

@@ -124,6 +124,7 @@ export const ar: Record<MsgKey, string> = {
   'accountSheet.save': 'حفظ',
   'sync.pending': '{count} غير مُزامَن',
   'sync.offline': 'غير متصل',
+  'sync.rejected': 'رفض الخادم {count} من التغييرات، فأُلغيت على هذا الجهاز.',
 
   'fx.line': '1 USD = {rate} GHS',
   'fx.auto': 'يومي',
