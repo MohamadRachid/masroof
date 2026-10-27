@@ -12,12 +12,24 @@ const PULL_EVERY_MS = 60_000
 // Table names are dynamic here, so use the client untyped; rows are validated by the schema.
 const client = supabase as unknown as SupabaseClient
 
+/**
+ * Never talk to the server as the anonymous role. When the stored login has expired and the
+ * refresh fails (offline, flaky network), supabase-js sends the request with the public key
+ * instead: RLS refuses pushes and pulls come back empty. Wait for a real session (SPEC §8).
+ */
+async function requireSession(): Promise<void> {
+  const { data } = await supabase.auth.getSession()
+  if (!data.session) throw Object.assign(new Error('No signed-in session yet; sync will retry'), { code: 'NO_SESSION' })
+}
+
 export const supabaseRemote: Remote = {
   async upsert(table, rows) {
+    await requireSession()
     const { error } = await client.from(table).upsert(rows, { onConflict: keyColumn(table) })
     if (error) throw error
   },
   async pullSince(table, since) {
+    await requireSession()
     const out: Row[] = []
     for (let from = 0; ; from += PAGE) {
       let query = client.from(table).select('*')

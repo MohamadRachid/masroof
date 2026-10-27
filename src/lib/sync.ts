@@ -32,12 +32,15 @@ function toServer(row: Row): Row {
 }
 
 /**
- * The server refused the data itself (bad value, constraint, permission, schema):
- * retrying can never succeed. Anything else (network, timeout, 5xx) is worth retrying.
+ * The server refused the data itself (Postgres class 22 bad value, 23 broken constraint):
+ * retrying can never succeed. Everything else is retried and the rows stay queued:
+ * network, timeouts, 5xx, and also permission, login and schema errors (42xxx, PGRST…).
+ * A request without a valid login (supabase-js falls back to the public key) is refused by
+ * RLS with 42501; dropping rows for that would lose offline entries for good.
  */
 function isPermanent(err: unknown): boolean {
   const code = err && typeof err === 'object' && 'code' in err ? String(err.code ?? '') : ''
-  return /^(22|23|42)/.test(code) || code.startsWith('PGRST')
+  return /^(22|23)/.test(code)
 }
 
 export type PushResult = { sent: number; rejected: string[] }
@@ -70,7 +73,8 @@ export async function push(db: MasroofDB, remote: Remote): Promise<PushResult> {
       } catch (err) {
         if (!isPermanent(err)) throw err
         // One bad row must not block the rest forever: send them one by one and set aside
-        // the ones the server rejects (the next pull restores the server's version).
+        // the ones the server rejects.
+        let rejectedHere = false
         for (const item of rows) {
           try {
             await remote.upsert(table, [toServer(item.row)])
@@ -79,8 +83,12 @@ export async function push(db: MasroofDB, remote: Remote): Promise<PushResult> {
             if (!isPermanent(rowErr)) throw rowErr
             console.warn(`server rejected ${table} ${item.key}`, rowErr)
             result.rejected.push(item.key)
+            rejectedHere = true
           }
         }
+        // The server's copy of a rejected row may be older than the cursor: re-read the whole
+        // table on the next pull (the same sync), so this device matches the server again.
+        if (rejectedHere) await db.meta.delete(cursorKey(table))
       }
     }
     // Only the items read above; anything queued meanwhile stays for the next push.

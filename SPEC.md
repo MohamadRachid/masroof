@@ -244,6 +244,12 @@ Phase 5 rulings (2026-10-27):
 - Soft deletes sync like updates.
 - Show a small "n unsynced" indicator in the header when the outbox is non-empty.
 
+Phase 6 hardening (2026-10-27):
+- Sync never talks to the server without a signed-in session. If the login can't be refreshed (offline, flaky network), supabase-js would otherwise send the request with only the public key, and the server would refuse the rows. In that case nothing is pushed or pulled and the outbox waits.
+- Only data errors count as permanent (Postgres classes 22 and 23: a bad value, a broken check, a missing parent). Permission, login and schema errors keep the rows queued and are retried; the "n unsynced" chip stays until they go through. An offline change is never dropped because of a login problem.
+- A row the server permanently rejects is set aside. The device then re-reads that table in full on the same sync, so its copy matches the server again: a rejected edit is reverted, and a rejected new row stays only on this device.
+- The two-device check is automated (two local databases sharing one fake server: offline phone, online laptop, reconnect, deletes, same-row edits) and done once by hand on the real phone and laptop.
+
 ---
 
 ## 9. FX rate

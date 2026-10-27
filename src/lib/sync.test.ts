@@ -230,3 +230,126 @@ describe('robustness', () => {
     expect(await db.entries.get('late')).toBeTruthy()
   })
 })
+
+describe('offline hardening (SPEC §8, phase 6)', () => {
+  it.each([
+    ['42501', 'refused by RLS: the request went out without a login'],
+    ['PGRST301', 'expired or invalid JWT'],
+    ['PGRST204', 'column missing from the schema cache'],
+    ['42703', 'undefined column: the app is newer than the database'],
+    ['NO_SESSION', 'no signed-in session on this device'],
+  ])('a %s error keeps every row queued (%s)', async (code) => {
+    const db = freshDb()
+    const server = fakeServer()
+    server.reject('e1', code)
+    await queueRows(db, 'entries', [entry('e1', 1), entry('e2', 2)])
+
+    await expect(push(db, server.remote)).rejects.toMatchObject({ code })
+
+    expect(await db.outbox.count()).toBe(2)
+    expect(server.rows('entries')).toEqual([])
+  })
+
+  it('a rejected edit is reverted to the server copy on the same sync', async () => {
+    const db = freshDb()
+    const server = fakeServer()
+    server.putAt('entries', entry('e1', 10), '2026-10-26T10:00:00.000000+00:00') // well before the cursor window
+    server.put('entries', entry('other', 5))
+    await pull(db, server.remote)
+    server.reject('e1', '23514')
+    await queueRows(db, 'entries', [entry('e1', 999)])
+
+    const result = await syncOnce(db, server.remote)
+
+    expect(result.rejected).toEqual(['e1'])
+    expect((await db.entries.get('e1'))?.amount).toBe(10)
+    expect(await db.outbox.count()).toBe(0)
+  })
+
+  it('a pull that fails (no session) never marks the initial pull done', async () => {
+    const db = freshDb()
+    const noSession = Object.assign(new Error('no session'), { code: 'NO_SESSION' })
+    const remote: Remote = {
+      upsert: () => Promise.reject(noSession),
+      pullSince: () => Promise.reject(noSession),
+    }
+
+    const result = await syncOnce(db, remote)
+
+    expect(result).toMatchObject({ ok: false, pulled: false })
+    expect(await db.meta.get(INITIAL_PULL_KEY)).toBeUndefined()
+  })
+})
+
+describe('two devices (SPEC §10 phase 6)', () => {
+  /** One device: its own local database, sharing the server; offline = every request fails. */
+  function device(server: ReturnType<typeof fakeServer>) {
+    const db = freshDb()
+    let online = true
+    const offline = () => Promise.reject(new TypeError('Failed to fetch'))
+    const remote: Remote = {
+      upsert: (table, rows) => (online ? server.remote.upsert(table, rows) : offline()),
+      pullSince: (table, since) => (online ? server.remote.pullSince(table, since) : offline()),
+    }
+    return { db, sync: () => syncOnce(db, remote), setOnline: (v: boolean) => (online = v) }
+  }
+
+  it('an entry made offline on the phone shows on the laptop after reconnect', async () => {
+    const server = fakeServer()
+    const phone = device(server)
+    const laptop = device(server)
+
+    phone.setOnline(false)
+    await queueRows(phone.db, 'entries', [entry('lunch', 45)])
+    expect((await phone.sync()).ok).toBe(false)
+    expect(await phone.db.entries.get('lunch')).toBeTruthy() // on the phone's screen straight away
+    expect(await phone.db.outbox.count()).toBe(1)
+
+    await queueRows(laptop.db, 'entries', [entry('rent', 1500)])
+    expect((await laptop.sync()).ok).toBe(true)
+
+    phone.setOnline(true)
+    expect((await phone.sync()).ok).toBe(true)
+    expect(await phone.db.outbox.count()).toBe(0)
+    expect(await phone.db.entries.get('rent')).toBeTruthy()
+
+    await laptop.sync()
+    expect(await laptop.db.entries.get('lunch')).toMatchObject({ amount: 45 })
+  })
+
+  it('a delete on one device reaches the other', async () => {
+    const server = fakeServer()
+    const phone = device(server)
+    const laptop = device(server)
+    await queueRows(phone.db, 'entries', [entry('taxi', 30)])
+    await phone.sync()
+    await laptop.sync()
+
+    await queueRows(laptop.db, 'entries', [entry('taxi', 30, { deleted_at: '2026-10-27T10:00:00.000Z' })])
+    await laptop.sync()
+    await phone.sync()
+
+    expect((await phone.db.entries.get('taxi'))?.deleted_at).toBe('2026-10-27T10:00:00.000Z')
+  })
+
+  it('the same entry edited on both: the last push wins and both end up the same', async () => {
+    const server = fakeServer()
+    const phone = device(server)
+    const laptop = device(server)
+    await queueRows(laptop.db, 'entries', [entry('food', 20, { note: null })])
+    await laptop.sync()
+    await phone.sync()
+
+    phone.setOnline(false)
+    await queueRows(laptop.db, 'entries', [entry('food', 20, { note: 'laptop' })])
+    await laptop.sync()
+    await queueRows(phone.db, 'entries', [entry('food', 20, { note: 'phone' })])
+    await phone.sync()
+    phone.setOnline(true)
+    await phone.sync()
+    await laptop.sync()
+
+    expect((await phone.db.entries.get('food'))?.note).toBe('phone')
+    expect((await laptop.db.entries.get('food'))?.note).toBe('phone')
+  })
+})
