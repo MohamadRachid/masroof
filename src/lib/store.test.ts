@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto'
 import { describe, expect, it } from 'vitest'
 import { MasroofDB } from './db'
 import Dexie from 'dexie'
-import { addEntry, createAccounts, deleteEntry, receiveSalary, repairPlaceholderRates, restoreEntry, savePlan, undoPlanSave, undoSalary, updateAccount, updateEntry, updateSettings } from './store'
+import { addEntry, createAccounts, deleteEntry, PlanChangedError, receiveSalary, repairPlaceholderRates, restoreEntry, savePlan, undoPlanSave, undoSalary, updateAccount, updateEntry, updateSettings } from './store'
 
 let dbCount = 0
 const freshDb = () => new MasroofDB(`store_${++dbCount}_${Date.now()}`)
@@ -216,6 +216,37 @@ describe('salary received (SPEC §7)', () => {
     expect(mine.length).toBe(3)
     expect(mine.every((e) => e.deleted_at)).toBe(true)
     expect((await db.plan_envelopes.toArray()).filter((e) => e.plan_id === open.plan.id).every((e) => !e.deleted_at)).toBe(true)
+  })
+
+  it('refuses, writing nothing, when the plan to close is no longer the open one', async () => {
+    const db = freshDb()
+    const open = await savePlan(db, 'u1', null, draft)
+    // Closed meanwhile (e.g. Salary received on the other device, pulled in while the sheet was open).
+    await db.plans.put({ ...open.plan, closed_at: '2026-11-20T00:00:00Z' })
+    const before = { entries: await db.entries.count(), plans: await db.plans.count(), outbox: await db.outbox.count() }
+
+    await expect(receiveSalary(db, 'u1', { entry: salary, close: { plan: open.plan, leftover: 0, action: 'ignore' }, plan: next })).rejects.toThrow(PlanChangedError)
+
+    expect({ entries: await db.entries.count(), plans: await db.plans.count(), outbox: await db.outbox.count() }).toEqual(before)
+  })
+
+  it('refuses to start a second open plan', async () => {
+    const db = freshDb()
+    await savePlan(db, 'u1', null, draft)
+    await expect(receiveSalary(db, 'u1', { entry: salary, close: null, plan: next })).rejects.toThrow(PlanChangedError)
+    expect(await db.entries.count()).toBe(0)
+  })
+
+  it('closes the stored version of the plan, not an older copy', async () => {
+    const db = freshDb()
+    const open = await savePlan(db, 'u1', null, draft)
+    const newer = { ...open.plan, expected_end: '2026-11-27', updated_at: '2026-11-01T00:00:00Z' }
+    await db.plans.put(newer)
+
+    const r = await receiveSalary(db, 'u1', { entry: salary, close: { plan: open.plan, leftover: 0, action: 'ignore' }, plan: next })
+
+    expect((await db.plans.get(open.plan.id))?.expected_end).toBe('2026-11-27')
+    expect(r.closed?.before.expected_end).toBe('2026-11-27')
   })
 
   it('editing a plan keeps its carry-over', async () => {

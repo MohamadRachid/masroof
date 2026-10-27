@@ -1,13 +1,12 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
 import { useI18n } from '../i18n'
 import { formatShortDate, ghs } from '../i18n/format'
-import { useAccounts, useCategories, useData, useDisplayRate, useEnvelopes, useLatestRate, usePlans, usePlanStats, useSettings } from '../lib/data'
-import { localDateISO } from '../lib/dates'
-import type { Account, Category, Plan, PlanEnvelope } from '../lib/db'
-import { effectiveRate, isRealRate } from '../lib/fx'
-import { bufferCategory, closeSummary, formatMoney, nextPlanAmounts, normalizeDigits, parseAmount, plannable, round2 } from '../lib/money'
+import { useAccounts, useCategories, useData, useDisplayRate, useEntries, useEnvelopes, useLatestRate, usePlans, usePlanStats, useSettings } from '../lib/data'
+import type { Account, Category, Entry, Plan, PlanEnvelope } from '../lib/db'
+import { convert, effectiveRate, isRealRate } from '../lib/fx'
+import { bufferCategory, closeSummary, formatMoney, nextPlanAmounts, normalizeDigits, parseAmount, plannable } from '../lib/money'
 import { accountName } from '../lib/names'
-import { receiveSalary, undoSalary, type LeftoverAction, type PlanDraft } from '../lib/store'
+import { PlanChangedError, receiveSalary, undoSalary, type LeftoverAction, type PlanDraft } from '../lib/store'
 import { showToast } from '../lib/toast'
 import { useToday } from '../lib/useToday'
 import { Button } from './Button'
@@ -33,6 +32,7 @@ export function SalarySheet({ open, onClose }: { open: boolean; onClose: () => v
   const latestRate = useLatestRate()
   const plans = usePlans()
   const envelopes = useEnvelopes()
+  const entries = useEntries()
   useBackToClose(open, onClose)
 
   const [session, setSession] = useState(0)
@@ -51,7 +51,7 @@ export function SalarySheet({ open, onClose }: { open: boolean; onClose: () => v
     step === 'close' && openPlan
       ? t('salary.closeTitle', { start: formatShortDate(openPlan.start_date, lang), end: formatShortDate(openPlan.expected_end, lang) })
       : t(step === 'plan' ? 'salary.planTitle' : 'salary.title')
-  const ready = accounts && categories && settings !== undefined && latestRate !== undefined && plans && envelopes
+  const ready = accounts && categories && settings !== undefined && latestRate !== undefined && plans && envelopes && entries
 
   return (
     <Sheet open={open} onClose={onClose} title={title}>
@@ -64,6 +64,7 @@ export function SalarySheet({ open, onClose }: { open: boolean; onClose: () => v
           categories={categories}
           plans={plans}
           envelopes={envelopes}
+          entries={entries}
           rate={effectiveRate(settings ?? null, latestRate ?? null).rate}
           payday={settings?.usual_payday ?? 25}
           warnPct={settings?.warn_pct ?? 80}
@@ -81,6 +82,7 @@ function SalaryFlow({
   categories,
   plans,
   envelopes,
+  entries,
   rate,
   payday,
   warnPct,
@@ -92,6 +94,7 @@ function SalaryFlow({
   categories: Category[]
   plans: Plan[]
   envelopes: PlanEnvelope[]
+  entries: Entry[]
   rate: number
   payday: number
   warnPct: number
@@ -116,14 +119,18 @@ function SalaryFlow({
     categories.find((c) => c.kind === 'income' && c.name_en === 'Salary' && !c.archived) ??
     categories.find((c) => c.kind === 'income' && !c.archived)
 
-  const [amountText, setAmountText] = useState(previous?.salary ? String(previous.salary) : '')
-  const [accountId, setAccountId] = useState((accounts.find((a) => a.kind === 'bank') ?? accounts[0])?.id ?? '')
+  // Start from the last salary as it was received (amount and account), else the last plan's salary into the bank.
+  const lastSalary = entries
+    .filter((e) => e.type === 'in' && e.category_id === salaryCategory?.id && accounts.some((a) => a.id === e.account_id))
+    .sort((a, b) => b.date.localeCompare(a.date) || b.created_at.localeCompare(a.created_at))[0]
+  const [amountText, setAmountText] = useState(lastSalary ? String(lastSalary.amount) : previous?.salary ? String(previous.salary) : '')
+  const [accountId, setAccountId] = useState(lastSalary?.account_id ?? (accounts.find((a) => a.kind === 'bank') ?? accounts[0])?.id ?? '')
   const [choice, setChoice] = useState<LeftoverAction | null>(null)
 
   const amount = parseAmount(amountText)
   const account = accounts.find((a) => a.id === accountId)
   // The plan budgets in GHS: a salary paid into USD starts the plan at its value at the frozen rate.
-  const amountGhs = amount === null ? null : account?.currency === 'USD' ? (isRealRate(rate) ? round2(amount * rate) : null) : amount
+  const amountGhs = amount === null ? null : account?.currency === 'USD' ? (isRealRate(rate) ? convert(amount, 'USD', rate) : null) : amount
   const canContinue = amount !== null && !!account && !!salaryCategory
   const carry = choice === 'buffer' && buffer && leftover > 0 ? leftover : 0
 
@@ -142,15 +149,23 @@ function SalaryFlow({
   }
 
   async function submit(draft: PlanDraft) {
-    // Never start a second open plan: closing needs the open plan's numbers.
+    // Closing needs the open plan's numbers; never start a second open plan.
     if (amount === null || !salaryCategory || (openPlan && !summary)) return
-    const receipt = await receiveSalary(db, userId, {
-      entry: { type: 'in', amount, account_id: accountId, category_id: salaryCategory.id, note: null, date: localDateISO(), rate_usd_ghs: rate },
-      close: openPlan ? { plan: openPlan, leftover, action: choice ?? 'ignore' } : null,
-      plan: draft,
-    })
-    showToast({ message: t('toast.salarySaved'), action: { label: t('toast.undo'), run: () => void undoSalary(db, receipt) } })
-    onDone()
+    try {
+      // One date for the whole flow (the sheet may stay open past midnight): the one the summary used.
+      const receipt = await receiveSalary(db, userId, {
+        entry: { type: 'in', amount, account_id: accountId, category_id: salaryCategory.id, note: null, date: today, rate_usd_ghs: rate },
+        close: openPlan ? { plan: openPlan, leftover, action: choice ?? 'ignore' } : null,
+        plan: { ...draft, start_date: today },
+      })
+      showToast({ message: t('toast.salarySaved'), action: { label: t('toast.undo'), run: () => void undoSalary(db, receipt) } })
+      onDone()
+    } catch (err) {
+      if (!(err instanceof PlanChangedError)) throw err
+      // The plan changed under the sheet (e.g. pulled from the other device): start again from fresh numbers.
+      showToast({ message: t('toast.planChanged') })
+      onDone()
+    }
   }
 
   const onEnter = (e: KeyboardEvent) => {
@@ -214,7 +229,13 @@ function SalaryFlow({
   }
 
   if (step === 'close') {
-    if (!stats || !summary) return null
+    if (!stats || !summary) {
+      return (
+        <div ref={root} className={styles.form}>
+          {back('amount')}
+        </div>
+      )
+    }
     return (
       <div ref={root} className={styles.form}>
         {back('amount')}

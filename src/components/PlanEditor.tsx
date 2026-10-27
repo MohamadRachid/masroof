@@ -109,12 +109,19 @@ export function PlanForm({
   async function save() {
     if (!canSave || salary === null) return
     setBusy(true)
-    await onSubmit({
-      salary,
-      start_date: today,
-      expected_end: ends,
-      amounts: Object.fromEntries(categories.map((c) => [c.id, round2(parsed[c.id] ?? 0)])),
-    })
+    try {
+      await onSubmit({
+        salary,
+        start_date: today,
+        expected_end: ends,
+        amounts: Object.fromEntries(categories.map((c) => [c.id, round2(parsed[c.id] ?? 0)])),
+      })
+    } catch (err) {
+      console.error('plan save failed', err)
+      showToast({ message: t('toast.saveFailed') })
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (

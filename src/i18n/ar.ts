@@ -207,4 +207,6 @@ export const ar: Record<MsgKey, string> = {
   'home.payday.title': 'هل وصل راتبك؟',
   'home.payday.body': 'كان يوم الراتب {date}. سجّله لإغلاق هذه الخطة وبدء الخطة القادمة.',
   'plan.overBudget': '{amount} أكثر من الراتب مع المُرحَّل',
+  'toast.saveFailed': 'تعذّر الحفظ. حاول مرة أخرى.',
+  'toast.planChanged': 'تغيّرت خطتك على الجهاز الآخر. لم يُحفظ شيء؛ افتحها من جديد.',
 }

@@ -211,17 +211,31 @@ export type SalaryInput = {
 
 export type SalaryReceipt = { entry: Entry; closed: { before: Plan; after: Plan } | null; created: PlanSnapshot }
 
+/** The open plan changed while the sheet was open (closed, or another one appeared): nothing was saved. */
+export class PlanChangedError extends Error {
+  constructor() {
+    super('The open plan changed; nothing was saved.')
+    this.name = 'PlanChangedError'
+  }
+}
+
 /**
  * One save for the whole flow: the salary entry, the closed plan (with its leftover note)
  * and the next plan, in one transaction. A leftover sent to Buffer becomes the new plan's carry_in.
+ * Throws PlanChangedError, writing nothing, unless the open plan is still the one the sheet showed.
  */
 export async function receiveSalary(db: MasroofDB, userId: string, input: SalaryInput): Promise<SalaryReceipt> {
   return db.transaction('rw', [db.entries, db.plans, db.plan_envelopes, db.outbox], async () => {
+    const open = await db.plans.filter((p) => !p.closed_at && !p.deleted_at).toArray()
+    if (open.length !== (input.close ? 1 : 0) || (input.close && open[0]?.id !== input.close.plan.id)) throw new PlanChangedError()
+
     const entry = await addEntry(db, userId, input.entry)
     let closed: SalaryReceipt['closed'] = null
     let carry = 0
-    if (input.close) {
-      const { plan, action } = input.close
+    if (input.close && open[0]) {
+      // Close the stored version: the sheet's copy may predate an edit pulled from the other device.
+      const plan = open[0]
+      const { action } = input.close
       const leftover = round2(input.close.leftover)
       const now = nowISO()
       const after: Plan = {
@@ -235,7 +249,6 @@ export async function receiveSalary(db: MasroofDB, userId: string, input: Salary
       closed = { before: plan, after }
       if (leftover > 0 && action === 'buffer') carry = leftover
     }
-    // Plans are queued before envelopes, so the server has the plan when its envelopes arrive.
     const created = await savePlan(db, userId, null, { ...input.plan, carry_in: carry })
     return { entry, closed, created }
   })

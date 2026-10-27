@@ -52,6 +52,14 @@ describe('plan dates', () => {
     expect(nextPayday('2026-10-15', 25)).toBe('2026-11-25') // exactly 10 days early
     expect(nextPayday('2026-10-26', 28)).toBe('2026-11-28')
   })
+
+  it('early-in-the-month paydays: a salary a few days before next month’s payday is that payday’s', () => {
+    expect(nextPayday('2026-10-29', 1)).toBe('2026-12-01') // paid 3 days before 1 Nov
+    expect(nextPayday('2026-10-26', 5)).toBe('2026-12-05') // exactly 10 days early
+    expect(nextPayday('2026-10-20', 5)).toBe('2026-11-05') // 16 days away: that's the next payday
+    expect(nextPayday('2026-12-28', 2)).toBe('2027-02-02') // across the year end
+    expect(nextPayday('2026-11-01', 1)).toBe('2026-12-01') // on payday itself
+  })
 })
 
 describe('payday nudge (SPEC §7)', () => {

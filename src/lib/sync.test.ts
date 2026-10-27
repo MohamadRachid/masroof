@@ -93,6 +93,20 @@ describe('push', () => {
     expect(server.upserts[0]?.rows[0]?.amount).toBe(15)
   })
 
+  it('sends parents before children whatever order the outbox holds them in (foreign keys)', async () => {
+    const db = freshDb()
+    const server = fakeServer()
+    // Envelopes left over from an earlier, half-failed push sit ahead of their new plan.
+    await queueRows(db, 'plan_envelopes', [{ id: 'env1', plan_id: 'p1', updated_at: 'x', deleted_at: null }])
+    await queueRows(db, 'entries', [entry('e1', 5)])
+    await queueRows(db, 'plans', [{ id: 'p1', updated_at: 'x', deleted_at: null }])
+    await queueRows(db, 'recurring', [{ id: 'r1', updated_at: 'x', deleted_at: null }])
+
+    await push(db, server.remote)
+
+    expect(server.upserts.map((u) => u.table)).toEqual(['recurring', 'entries', 'plans', 'plan_envelopes'])
+  })
+
   it('keeps everything queued when the server is unreachable', async () => {
     const db = freshDb()
     const server = fakeServer()

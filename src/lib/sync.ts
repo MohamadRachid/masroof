@@ -42,7 +42,7 @@ function isPermanent(err: unknown): boolean {
 
 export type PushResult = { sent: number; rejected: string[] }
 
-/** Send the outbox, oldest first, one upsert per table with only the latest version of each row. */
+/** Send the outbox: one upsert per table, parent tables first, with only the latest version of each row. */
 export async function push(db: MasroofDB, remote: Remote): Promise<PushResult> {
   const result: PushResult = { sent: 0, rejected: [] }
   const items = await db.outbox.orderBy('seq').toArray()
@@ -56,7 +56,12 @@ export async function push(db: MasroofDB, remote: Remote): Promise<PushResult> {
     byTable.set(item.table, group)
   }
 
-  for (const [table, { latest, seqs }] of byTable) {
+  // Parents before children, never outbox order: a child arriving first fails its foreign key
+  // (23503), which counts as permanent, and would be set aside for good.
+  for (const table of SYNCED_TABLES) {
+    const group = byTable.get(table)
+    if (!group) continue
+    const { latest, seqs } = group
     if (!READ_ONLY_TABLES.has(table)) {
       const rows = [...latest.values()]
       try {

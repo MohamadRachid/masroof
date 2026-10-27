@@ -41,7 +41,7 @@ SPEC.md  CLAUDE.md  PROGRESS.md
 - Soft delete only (`deleted_at`). All queries filter it out.
 - UI reads from Dexie only (hooks in `src/lib/data.tsx`); writes go through `src/lib/store.ts` → `queueRows` (Dexie + outbox) → `src/lib/sync.ts` push. Never call Supabase directly from a component.
 - `useLiveQuery` returns undefined both while loading and for an empty result: for single-row lookups return `?? null`.
-- One Dexie DB per user (`masroof_<userId>`). Bump `db.version()` with every schema migration. Push never sends `updated_at` (server stamps it); pull uses `updated_at > cursor` per table.
+- One Dexie DB per user (`masroof_<userId>`). Bump `db.version()` with every schema migration. Push never sends `updated_at` (server stamps it) and sends tables in `SYNCED_TABLES` order, parents before children (keep it in foreign-key order); pull uses `updated_at > cursor` per table. A new column needs a Dexie `upgrade()` filling its default on rows already stored (they won't be pulled again).
 - Styling: CSS Modules + tokens in `src/styles/tokens.css`. Logical properties only (`margin-inline-start`, `inset-inline-end`…), never left/right. No component library.
 - Mobile-first, dark default, RTL must not break layout — check AR after every screen change.
 - Latin digits in both languages (`Intl` locale `ar-u-nu-latn`, see `src/i18n/format.ts`).

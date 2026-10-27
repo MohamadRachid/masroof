@@ -204,6 +204,8 @@ export const en = {
   'home.payday.title': 'Did your salary arrive?',
   'home.payday.body': 'Payday was {date}. Record it to close this plan and start the next.',
   'plan.overBudget': '{amount} more than salary + carried over',
+  'toast.saveFailed': 'Couldn’t save. Try again.',
+  'toast.planChanged': 'Your plan changed on the other device. Nothing was saved; open it again.',
 } as const
 
 export type MsgKey = keyof typeof en

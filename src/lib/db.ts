@@ -13,13 +13,14 @@ export type Reconciliation = Tables<'reconciliations'>
 export type Rate = Tables<'rates'>
 export type Settings = Tables<'settings'>
 
+/** Parents before children (foreign keys): push sends tables in this order. */
 export const SYNCED_TABLES = [
   'accounts',
   'categories',
+  'recurring',
   'entries',
   'plans',
   'plan_envelopes',
-  'recurring',
   'reconciliations',
   'rates',
   'settings',

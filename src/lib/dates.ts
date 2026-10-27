@@ -54,14 +54,15 @@ const daysInMonth = (y: number, m: number) => new Date(y, m, 0).getDate() // m i
 // the salary just received is that payday's, so the plan runs to the following one.
 const EARLY_SALARY_DAYS = 10
 
-/** The payday this plan runs to: the next usual payday, skipping one that's 10 days away or less. */
+/** The payday this plan runs to: the upcoming usual payday, skipped if it's 10 days away or less. */
 export function nextPayday(todayIso: string, payday: number): string {
   const [y = 1970, m = 1, d = 1] = todayIso.split('-').map(Number)
-  const day = (yy: number, mm: number) => Math.min(payday, daysInMonth(yy, mm))
-  if (day(y, m) - d > EARLY_SALARY_DAYS) return `${y}-${pad(m)}-${pad(day(y, m))}`
-  const ny = m === 12 ? y + 1 : y
-  const nm = m === 12 ? 1 : m + 1
-  return `${ny}-${pad(nm)}-${pad(day(ny, nm))}`
+  const at = (yy: number, mm: number) => `${yy}-${pad(mm)}-${pad(Math.min(payday, daysInMonth(yy, mm)))}`
+  const after = (yy: number, mm: number): [number, number] => (mm === 12 ? [yy + 1, 1] : [yy, mm + 1])
+  // Upcoming = this month's payday if it hasn't passed, else next month's (it may be in the next month).
+  let [uy, um] = d <= Math.min(payday, daysInMonth(y, m)) ? [y, m] : after(y, m)
+  if (daysBetween(todayIso, at(uy, um)) <= EARLY_SALARY_DAYS) [uy, um] = after(uy, um)
+  return at(uy, um)
 }
 
 /** The most recent usual payday on or before today, clamped to short months. */
