@@ -109,6 +109,8 @@ Implementation notes (phase 0, migration `20261026105040_init`):
 - Default categories (with Arabic names and icon keys) and the `settings` row are seeded by a trigger on `auth.users` at signup, not by the client. Two devices can never double-seed.
 - Stricter than the sketch above: `entries.date/type/account_id/category_id/amount/rate_usd_ghs` are NOT NULL, `plans.salary` is NOT NULL (≥ 0), `expected_end ≥ start_date`, and there is one live envelope per (plan, category). `accounts.kind` stays unconstrained so new kinds (e.g. MoMo) need no migration.
 
+Phase 4 (2026-10-27, migration `plans_leftover`): `plans` gains `leftover numeric(14,2)` and `leftover_action text check in ('savings','buffer','ignore')` (set together, on the plan being closed, only when leftover > 0), and `carry_in numeric(14,2) not null default 0` (≥ 0, on the new plan when the leftover went to its Buffer).
+
 ---
 
 ## 5. Core math (single source of truth, pure functions in `src/lib/money.ts`, unit-tested)
@@ -187,6 +189,7 @@ Current plan: salary, envelopes (editable amounts), total allocated vs. salary (
 Button: **Salary received** → see §7.
 Past plans: list; tap → read-only planned vs. actual.
 Phase 3 notes (2026-10-26): until Salary received exists (phase 4), a plan is started from the Plan screen (start = today, end = next payday, editable) without creating a salary entry. Every non-income category gets an envelope (it may be 0). For the first plan, "Suggest amounts" splits the salary by default shares (Rent 30 %, Bills 8, Data/Phone 3, Food 15, Groceries 10, Transport 8, Fun 5, Health 3, Family 5, Buffer 5, Savings 8), rounded to tens, with the remainder in Buffer. The live impact line in Add shows for new Out entries only.
+Phase 4 notes (2026-10-27): **Salary received** is the Plan screen's main button. The empty Plan screen keeps "start a plan without recording a salary" as a quiet second button, because on first run the salary may already be in the opening balance. A plan with carry-over shows "Carried over" under the salary; "Assigned" may reach salary + carried over, never more. A past plan shows what happened to its leftover.
 
 ### More
 - Recurring: list + add/edit (name, in/out, amount, account, category, day of month). Due items also surface on Home.
@@ -201,6 +204,14 @@ Phase 3 notes (2026-10-26): until Salary received exists (phase 4), a plan is st
 1. Enter salary amount and account (default bank). Creates an `in` entry, category Salary.
 2. If a plan is open: show close summary — planned vs. actual per envelope, total over/under. Ask what to do with leftover variable money: *Move to Savings* (creates an envelope note, not a money move), *Add to next Buffer*, *Ignore*. Mark plan `closed_at`.
 3. Create the new plan: `start_date` = today, `expected_end` = next `usual_payday` (if this month's payday is 10 days away or less, the salary counts as early and the plan runs to the following month's payday), envelopes prefilled from the previous plan (or defaults on first run). User edits, saves.
+
+Phase 4 rulings (2026-10-27):
+- Leftover = the closing plan's variable left (§5) for its period, which ends the day before the new plan starts. At 0 or below there is nothing to decide. A plan that started today has an empty period, so it has no leftover.
+- *Move to Savings* is a note on the closed plan (`leftover`, `leftover_action = 'savings'`); balances and the new plan don't change. *Ignore* is recorded the same way.
+- *Add to next Buffer*: the new plan's Buffer envelope starts higher by the leftover, and its budget becomes salary + leftover (`carry_in`). Offered only while a live Buffer category exists. The carry is a one-off: the plan after it prefills Buffer without it.
+- One sheet, three steps; nothing is written until the final Save. Then the salary entry (dated today, category Salary, rate frozen as usual), the plan close and the new plan are written together, with one Undo toast that reverts all of them.
+- The new plan's salary field starts at the amount received (its GHS value at the entry's rate if it went into USD) and stays editable: it is the plan's budget number, not the entry.
+- Home nudge: shown once a plan exists, when the most recent usual payday (on or before today) has passed and no plan started on or after 10 days before it (the same early-salary window). It opens the same sheet.
 
 **Reconcile** (per account):
 1. Shows computed balance. User types actual balance.

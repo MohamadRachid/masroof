@@ -63,3 +63,23 @@ export function nextPayday(todayIso: string, payday: number): string {
   const nm = m === 12 ? 1 : m + 1
   return `${ny}-${pad(nm)}-${pad(day(ny, nm))}`
 }
+
+/** The most recent usual payday on or before today, clamped to short months. */
+export function lastPayday(todayIso: string, payday: number): string {
+  const [y = 1970, m = 1, d = 1] = todayIso.split('-').map(Number)
+  const day = (yy: number, mm: number) => Math.min(payday, daysInMonth(yy, mm))
+  if (d >= day(y, m)) return `${y}-${pad(m)}-${pad(day(y, m))}`
+  const py = m === 1 ? y - 1 : y
+  const pm = m === 1 ? 12 : m - 1
+  return `${py}-${pad(pm)}-${pad(day(py, pm))}`
+}
+
+/**
+ * Home's payday nudge (SPEC §7): payday has passed and no plan started in this pay
+ * cycle (a salary taken up to 10 days early counts). Never before the first plan exists.
+ */
+export function salaryDue(todayIso: string, payday: number, planStarts: readonly string[]): boolean {
+  if (planStarts.length === 0) return false
+  const cycleStart = addDays(lastPayday(todayIso, payday), -EARLY_SALARY_DAYS)
+  return !planStarts.some((start) => start >= cycleStart)
+}

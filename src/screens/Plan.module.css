@@ -89,3 +89,27 @@
   align-items: flex-end;
   gap: 2px;
 }
+
+.actions {
+  display: flex;
+  gap: var(--s-2);
+}
+
+.actions > * {
+  flex: 1;
+}
+
+.emptyActions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+
+.notes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  padding-inline: var(--s-1);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}

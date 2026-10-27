@@ -1,7 +1,8 @@
 import 'fake-indexeddb/auto'
 import { describe, expect, it } from 'vitest'
 import { MasroofDB } from './db'
-import { addEntry, createAccounts, deleteEntry, repairPlaceholderRates, restoreEntry, savePlan, undoPlanSave, updateAccount, updateEntry, updateSettings } from './store'
+import Dexie from 'dexie'
+import { addEntry, createAccounts, deleteEntry, receiveSalary, repairPlaceholderRates, restoreEntry, savePlan, undoPlanSave, undoSalary, updateAccount, updateEntry, updateSettings } from './store'
 
 let dbCount = 0
 const freshDb = () => new MasroofDB(`store_${++dbCount}_${Date.now()}`)
@@ -126,7 +127,7 @@ describe('plans', () => {
   it('savePlan creates the plan and one envelope per category, all queued', async () => {
     const db = freshDb()
     const saved = await savePlan(db, 'u1', null, draft)
-    expect(saved.plan).toMatchObject({ user_id: 'u1', salary: 5000, start_date: '2026-10-26', expected_end: '2026-11-25', closed_at: null })
+    expect(saved.plan).toMatchObject({ user_id: 'u1', salary: 5000, start_date: '2026-10-26', expected_end: '2026-11-25', closed_at: null, carry_in: 0, leftover: null, leftover_action: null })
     expect(saved.envelopes.map((e) => [e.category_id, e.amount, e.plan_id === saved.plan.id]).sort()).toEqual([
       ['food', 900, true], ['rent', 1500, true], ['savings', 500, true],
     ])
@@ -153,5 +154,87 @@ describe('plans', () => {
     await undoPlanSave(db, null, created)
     expect((await db.plans.get(created.plan.id))?.deleted_at).toBeTruthy()
     expect((await db.plan_envelopes.toArray()).every((e) => e.deleted_at)).toBe(true)
+  })
+})
+
+describe('salary received (SPEC §7)', () => {
+  const draft = { salary: 5000, start_date: '2026-10-26', expected_end: '2026-11-25', amounts: { rent: 1500, food: 900, buffer: 250 } }
+  const salary = { type: 'in' as const, amount: 5000, account_id: 'bank-id', category_id: 'salary-id', note: null, date: '2026-11-25', rate_usd_ghs: 11.6 }
+  const next = { salary: 5000, start_date: '2026-11-25', expected_end: '2026-12-25', amounts: { rent: 1500, food: 900, buffer: 480 } }
+
+  it('records the salary, closes the open plan with its leftover note and starts the next plan', async () => {
+    const db = freshDb()
+    const open = await savePlan(db, 'u1', null, draft)
+    await db.outbox.clear()
+
+    const r = await receiveSalary(db, 'u1', { entry: salary, close: { plan: open.plan, leftover: 230, action: 'buffer' }, plan: next })
+
+    expect(await db.entries.get(r.entry.id)).toMatchObject({ type: 'in', amount: 5000, category_id: 'salary-id', date: '2026-11-25' })
+    expect(await db.plans.get(open.plan.id)).toMatchObject({ leftover: 230, leftover_action: 'buffer' })
+    expect((await db.plans.get(open.plan.id))?.closed_at).toBeTruthy()
+    expect(await db.plans.get(r.created.plan.id)).toMatchObject({ start_date: '2026-11-25', salary: 5000, carry_in: 230, closed_at: null })
+    expect(r.created.envelopes.find((e) => e.category_id === 'buffer')?.amount).toBe(480)
+    // The outbox sends plans before their envelopes (the server checks plan_id).
+    const tables = (await db.outbox.orderBy('seq').toArray()).map((i) => i.table)
+    expect(tables.indexOf('plans')).toBeLessThan(tables.indexOf('plan_envelopes'))
+  })
+
+  it('savings and ignore are notes only: the next plan carries nothing', async () => {
+    const db = freshDb()
+    const open = await savePlan(db, 'u1', null, draft)
+    const r = await receiveSalary(db, 'u1', { entry: salary, close: { plan: open.plan, leftover: 230, action: 'savings' }, plan: next })
+    expect(await db.plans.get(open.plan.id)).toMatchObject({ leftover: 230, leftover_action: 'savings' })
+    expect(r.created.plan.carry_in).toBe(0)
+  })
+
+  it('no leftover → no note on the closed plan', async () => {
+    const db = freshDb()
+    const open = await savePlan(db, 'u1', null, draft)
+    await receiveSalary(db, 'u1', { entry: salary, close: { plan: open.plan, leftover: 0, action: 'buffer' }, plan: next })
+    expect(await db.plans.get(open.plan.id)).toMatchObject({ leftover: null, leftover_action: null })
+  })
+
+  it('without an open plan it just records the salary and starts the first plan', async () => {
+    const db = freshDb()
+    const r = await receiveSalary(db, 'u1', { entry: salary, close: null, plan: next })
+    expect(r.closed).toBeNull()
+    expect(await db.plans.count()).toBe(1)
+    expect(await db.entries.count()).toBe(1)
+  })
+
+  it('undo puts everything back: salary gone, old plan open again, new plan and envelopes gone', async () => {
+    const db = freshDb()
+    const open = await savePlan(db, 'u1', null, draft)
+    const r = await receiveSalary(db, 'u1', { entry: salary, close: { plan: open.plan, leftover: 230, action: 'buffer' }, plan: next })
+
+    await undoSalary(db, r)
+
+    expect((await db.entries.get(r.entry.id))?.deleted_at).toBeTruthy()
+    expect(await db.plans.get(open.plan.id)).toMatchObject({ closed_at: null, leftover: null, leftover_action: null, deleted_at: null })
+    expect((await db.plans.get(r.created.plan.id))?.deleted_at).toBeTruthy()
+    const mine = (await db.plan_envelopes.toArray()).filter((e) => e.plan_id === r.created.plan.id)
+    expect(mine.length).toBe(3)
+    expect(mine.every((e) => e.deleted_at)).toBe(true)
+    expect((await db.plan_envelopes.toArray()).filter((e) => e.plan_id === open.plan.id).every((e) => !e.deleted_at)).toBe(true)
+  })
+
+  it('editing a plan keeps its carry-over', async () => {
+    const db = freshDb()
+    const r = await receiveSalary(db, 'u1', { entry: salary, close: { plan: (await savePlan(db, 'u1', null, draft)).plan, leftover: 230, action: 'buffer' }, plan: next })
+    const edited = await savePlan(db, 'u1', r.created, { ...next, amounts: { ...next.amounts, food: 800 } })
+    expect(edited.plan.carry_in).toBe(230)
+  })
+})
+
+describe('local database upgrade', () => {
+  it('v2 fills the new plan fields on plans stored before the migration', async () => {
+    const name = `upgrade_${Date.now()}`
+    const v1 = new Dexie(name)
+    v1.version(1).stores({ plans: 'id, updated_at' })
+    await v1.table('plans').put({ id: 'p1', salary: 5000, start_date: '2026-10-26', expected_end: '2026-11-25', closed_at: null, updated_at: 'x' })
+    v1.close()
+
+    const db = new MasroofDB(name)
+    expect(await db.plans.get('p1')).toMatchObject({ salary: 5000, carry_in: 0, leftover: null, leftover_action: null })
   })
 })

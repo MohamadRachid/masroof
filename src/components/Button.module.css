@@ -16,6 +16,10 @@
     opacity var(--dur-2) ease;
 }
 
+.btn > svg {
+  flex: none;
+}
+
 .btn:active:not(:disabled) {
   transform: scale(0.97);
 }

@@ -220,33 +220,42 @@ export type Database = {
       }
       plans: {
         Row: {
+          carry_in: number
           closed_at: string | null
           created_at: string
           deleted_at: string | null
           expected_end: string
           id: string
+          leftover: number | null
+          leftover_action: string | null
           salary: number
           start_date: string
           updated_at: string
           user_id: string
         }
         Insert: {
+          carry_in?: number
           closed_at?: string | null
           created_at?: string
           deleted_at?: string | null
           expected_end: string
           id?: string
+          leftover?: number | null
+          leftover_action?: string | null
           salary: number
           start_date: string
           updated_at?: string
           user_id?: string
         }
         Update: {
+          carry_in?: number
           closed_at?: string | null
           created_at?: string
           deleted_at?: string | null
           expected_end?: string
           id?: string
+          leftover?: number | null
+          leftover_action?: string | null
           salary?: number
           start_date?: string
           updated_at?: string

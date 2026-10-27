@@ -233,3 +233,9 @@
 .envelopes > * + * {
   box-shadow: inset 0 1px 0 var(--line);
 }
+
+/* Payday nudge: salary is money in. */
+.planCard[data-tone='payday'] .planIcon {
+  background: var(--good-soft);
+  color: var(--good);
+}

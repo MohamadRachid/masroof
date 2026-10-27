@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { createContext, useContext, useEffect, useMemo, type ReactNode } from 'react'
-import { dbFor, type MasroofDB } from './db'
+import { dbFor, type MasroofDB, type Plan } from './db'
 import { effectiveRate, type EffectiveRate } from './fx'
 import { planStats, type PlanStats } from './money'
 import type { PlanSnapshot } from './store'
@@ -129,4 +129,34 @@ export function useCurrentPlan(): CurrentPlan | null | undefined {
     })
     return { snapshot: { plan, envelopes: mine }, stats }
   }, [plans, envelopes, categories, entries, accounts, settings, rate, today])
+}
+
+/**
+ * SPEC §5 numbers for any plan. With nextStart the period ends the day before it
+ * (a past plan, or the open plan as Salary received closes it). null = no plan or loading.
+ */
+export function usePlanStats(plan: Plan | null, nextStart?: string): PlanStats | null {
+  const envelopes = useEnvelopes()
+  const categories = useCategories()
+  const entries = useEntries()
+  const accounts = useAccounts()
+  const settings = useSettings()
+  const rate = useDisplayRate()
+  const today = useToday()
+
+  return useMemo(() => {
+    if (!plan || !envelopes || !categories || !entries || !accounts || settings === undefined) return null
+    return planStats({
+      plan,
+      envelopes: envelopes.filter((e) => e.plan_id === plan.id),
+      categories,
+      entries,
+      today,
+      nextStart,
+      weekStart: settings?.week_start ?? 1,
+      warnPct: settings?.warn_pct ?? 80,
+      currencyOf: (id) => accounts.find((a) => a.id === id)?.currency ?? 'GHS',
+      fallbackRate: rate,
+    })
+  }, [plan, nextStart, envelopes, categories, entries, accounts, settings, rate, today])
 }

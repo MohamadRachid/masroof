@@ -117,7 +117,8 @@ type PlanEntry = {
 }
 
 export type PlanInput = {
-  plan: { start_date: string; expected_end: string; salary: number }
+  /** carry_in: leftover taken into this plan's Buffer; the budget is salary + carry_in. */
+  plan: { start_date: string; expected_end: string; salary: number; carry_in?: number }
   envelopes: readonly { category_id: string; amount: number; deleted_at: string | null }[]
   categories: readonly { id: string; kind: string }[]
   entries: readonly PlanEntry[]
@@ -189,7 +190,7 @@ export function planStats(input: PlanInput): PlanStats {
   return {
     envelopes,
     allocated: allocatedCents / 100,
-    unallocated: (toCents(plan.salary) - allocatedCents) / 100,
+    unallocated: (toCents(plan.salary) + toCents(plan.carry_in ?? 0) - allocatedCents) / 100,
     variableLeft: variableLeftCents / 100,
     daysRemaining,
     safeToSpend: Math.round(variableLeftCents / daysRemaining) / 100,
@@ -252,5 +253,56 @@ export function suggestEnvelopes(
   const remainder = toCents(salary) - usedCents
   const target = buffer ?? Object.keys(result)[0]
   if (target && remainder > 0) result[target] = (toCents(result[target] ?? 0) + remainder) / 100
+  return result
+}
+
+// ── Salary received (SPEC §7) ─────────────────────────────────────────────
+
+export type CloseSummary = { planned: number; spent: number; diff: number; leftover: number }
+
+/** Closing a plan: total planned vs spent (diff < 0 = over), and the day-to-day money left (never below 0). */
+export function closeSummary(stats: PlanStats): CloseSummary {
+  const plannedCents = toCents(stats.allocated)
+  const spentCents = stats.envelopes.reduce((sum, x) => sum + toCents(x.spent), 0)
+  return {
+    planned: plannedCents / 100,
+    spent: spentCents / 100,
+    diff: (plannedCents - spentCents) / 100,
+    leftover: Math.max(0, toCents(stats.variableLeft)) / 100,
+  }
+}
+
+/** The categories a plan has envelopes for: everything but income, archived left out. */
+export function plannable<C extends { kind: string; archived: boolean }>(categories: readonly C[]): C[] {
+  return categories.filter((c) => c.kind !== 'income' && !c.archived)
+}
+
+/** Where "Add to next Buffer" puts the leftover: the live Buffer category, if there is one. */
+export function bufferCategory<C extends { name_en: string; kind: string; archived: boolean }>(categories: readonly C[]): C | undefined {
+  return categories.find((c) => c.name_en === 'Buffer' && c.kind !== 'income' && !c.archived)
+}
+
+/**
+ * The next plan's envelopes: the previous plan's amounts (new categories at 0), or the
+ * default shares for the very first plan. Buffer: the previous plan's carry-over was a
+ * one-off, so it comes back out; this plan's carry (leftover sent to Buffer) goes in.
+ */
+export function nextPlanAmounts(
+  categories: readonly { id: string; name_en: string; kind: string }[],
+  previous: { envelopes: readonly { category_id: string; amount: number; deleted_at: string | null }[]; carry_in: number } | null,
+  salary: number,
+  buffer?: { id: string; carry: number },
+): Record<string, number> {
+  let result: Record<string, number>
+  if (previous) {
+    const byCategory = new Map(previous.envelopes.filter((x) => !x.deleted_at).map((x) => [x.category_id, x.amount]))
+    result = Object.fromEntries(categories.filter((c) => c.kind !== 'income').map((c) => [c.id, byCategory.get(c.id) ?? 0]))
+  } else {
+    result = suggestEnvelopes(categories, salary)
+  }
+  if (buffer && buffer.id in result) {
+    const base = Math.max(0, toCents(result[buffer.id] ?? 0) - toCents(previous?.carry_in ?? 0))
+    result[buffer.id] = (base + toCents(buffer.carry)) / 100
+  }
   return result
 }

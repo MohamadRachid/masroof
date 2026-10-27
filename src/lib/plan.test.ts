@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { envelopeStatus, impactOf, planStats, round2, suggestEnvelopes, weeklyStatus } from './money'
+import { bufferCategory, closeSummary, envelopeStatus, impactOf, nextPlanAmounts, planStats, round2, suggestEnvelopes, weeklyStatus } from './money'
 
 // A plan worked through by hand:
 // salary 5000 from Sun 25 Oct to Tue 24 Nov; today Wed 28 Oct; weeks start Monday.
@@ -174,5 +174,62 @@ describe('envelopeStatus', () => {
     expect(envelopeStatus('variable', 100.01, 100, 80)).toBe('bad')
     expect(envelopeStatus('variable', 5, 0, 80)).toBe('bad')
     expect(envelopeStatus('variable', 0, 0, 80)).toBe('plain')
+  })
+})
+
+describe('salary received (SPEC §7)', () => {
+  it('a carried-over leftover raises what can be assigned', () => {
+    expect(planStats({ ...base, plan: { ...plan, carry_in: 200 } }).unallocated).toBe(2000)
+  })
+
+  it('close summary: planned vs spent overall, and the day-to-day money left over', () => {
+    expect(closeSummary(planStats(base))).toEqual({ planned: 3200, spent: 1770, diff: 1430, leftover: 930 })
+  })
+
+  it('overspent day-to-day money leaves nothing to carry, and the total can go over', () => {
+    const over = planStats({ ...base, entries: [...entries, e('food', 1000, '2026-10-28'), e('rent', 300, '2026-10-28')] })
+    expect(closeSummary(over)).toEqual({ planned: 3200, spent: 3070, diff: 130, leftover: 0 })
+    const way = planStats({ ...base, entries: [...entries, e('rent', 2000, '2026-10-28')] })
+    expect(closeSummary(way).diff).toBe(-570)
+  })
+
+  const cats = [
+    { id: 'rent', name_en: 'Rent', kind: 'fixed', archived: false },
+    { id: 'food', name_en: 'Food', kind: 'variable', archived: false },
+    { id: 'buffer', name_en: 'Buffer', kind: 'variable', archived: false },
+    { id: 'savings', name_en: 'Savings', kind: 'savings', archived: false },
+    { id: 'gym', name_en: 'Gym', kind: 'variable', archived: false },
+  ]
+  const previous = [
+    { category_id: 'rent', amount: 1500, deleted_at: null },
+    { category_id: 'food', amount: 900, deleted_at: null },
+    { category_id: 'buffer', amount: 250.5, deleted_at: null },
+    { category_id: 'savings', amount: 400, deleted_at: '2026-10-20T00:00:00Z' },
+  ]
+
+  it('the next plan starts from the previous envelopes; new categories start at 0', () => {
+    expect(nextPlanAmounts(cats, { envelopes: previous, carry_in: 0 }, 5000)).toEqual({ rent: 1500, food: 900, buffer: 250.5, savings: 0, gym: 0 })
+  })
+
+  it('a leftover sent to Buffer is added to it', () => {
+    expect(nextPlanAmounts(cats, { envelopes: previous, carry_in: 0 }, 5000, { id: 'buffer', carry: 930.25 }).buffer).toBe(1180.75)
+  })
+
+  it('last plan’s carry-over was a one-off: its Buffer starts back without it', () => {
+    const prev = { envelopes: previous, carry_in: 200 }
+    expect(nextPlanAmounts(cats, prev, 5000, { id: 'buffer', carry: 0 }).buffer).toBe(50.5)
+    expect(nextPlanAmounts(cats, prev, 5000, { id: 'buffer', carry: 100 }).buffer).toBe(150.5)
+    // Never below 0, even if Buffer was cut after the carry came in.
+    expect(nextPlanAmounts(cats, { envelopes: previous, carry_in: 400 }, 5000, { id: 'buffer', carry: 0 }).buffer).toBe(0)
+  })
+
+  it('the first plan starts from the default shares', () => {
+    expect(nextPlanAmounts(cats, null, 5000)).toEqual(suggestEnvelopes(cats, 5000))
+    expect(nextPlanAmounts(cats, null, 5000, { id: 'buffer', carry: 30 }).buffer).toBe(suggestEnvelopes(cats, 5000).buffer! + 30)
+  })
+
+  it('Buffer is the live Buffer category, if there is one', () => {
+    expect(bufferCategory(cats)?.id).toBe('buffer')
+    expect(bufferCategory(cats.map((c) => (c.id === 'buffer' ? { ...c, archived: true } : c)))).toBeUndefined()
   })
 })

@@ -70,6 +70,18 @@ export class MasroofDB extends Dexie {
       outbox: '++seq, table, key',
       meta: 'key',
     })
+    // v2 (migration plans_leftover): plans gain leftover, leftover_action, carry_in. Rows already
+    // stored here won't be pulled again (their updated_at didn't change), so fill the server defaults.
+    this.version(2).upgrade((tx) =>
+      tx
+        .table('plans')
+        .toCollection()
+        .modify((p: Partial<Plan>) => {
+          p.leftover ??= null
+          p.leftover_action ??= null
+          p.carry_in ??= 0
+        }),
+    )
   }
 
   tableOf(table: SyncedTable): Table<Row, string> {

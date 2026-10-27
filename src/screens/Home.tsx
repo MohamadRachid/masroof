@@ -1,15 +1,16 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { EntryRow } from '../components/EntryRow'
 import { EnvelopeRow } from '../components/EnvelopeRow'
 import { Icon } from '../components/Icon'
 import { Equivalent, Money } from '../components/Money'
 import { Progress } from '../components/Progress'
 import { RateLine } from '../components/RateLine'
+import { SalarySheet } from '../components/SalarySheet'
 import { Screen } from '../components/Screen'
 import { useI18n } from '../i18n'
-import { formatLongDate, ltr } from '../i18n/format'
-import { useAccounts, useCategories, useCurrentPlan, useDisplayRate, useEntries, useSettings } from '../lib/data'
-import { parseLocalDate } from '../lib/dates'
+import { formatLongDate, formatShortDate, ltr } from '../i18n/format'
+import { useAccounts, useCategories, useCurrentPlan, useDisplayRate, useEntries, usePlans, useSettings } from '../lib/data'
+import { lastPayday, parseLocalDate, salaryDue } from '../lib/dates'
 import type { Entry } from '../lib/db'
 import { groupByDay } from '../lib/entries'
 import { balance, formatMoney, type PlanStats, type WeekStatus } from '../lib/money'
@@ -27,8 +28,14 @@ export default function Home({ onOpenEntry }: { onOpenEntry: (entry: Entry) => v
   const rate = useDisplayRate()
   const current = useCurrentPlan()
   const settings = useSettings()
+  const plans = usePlans()
+  const [salaryOpen, setSalaryOpen] = useState(false)
   useStatusGlow(current?.stats.week.status ?? null)
-  if (!accounts || !categories || !entries || current === undefined) return null
+  if (!accounts || !categories || !entries || current === undefined || !plans) return null
+
+  // SPEC §7 payday nudge: a tap opens Salary received; nothing is recorded on its own.
+  const payday = settings?.usual_payday ?? 25
+  const due = salaryDue(today, payday, plans.map((p) => p.start_date))
 
   const currencyOf = (id: string) => accounts.find((a) => a.id === id)?.currency ?? ''
   const todayGroup = groupByDay(
@@ -38,6 +45,19 @@ export default function Home({ onOpenEntry }: { onOpenEntry: (entry: Entry) => v
 
   return (
     <Screen title={t('home.title')} subtitle={formatLongDate(parseLocalDate(today), lang)}>
+      {due && (
+        <button type="button" className={styles.planCard} data-tone="payday" onClick={() => setSalaryOpen(true)}>
+          <span className={styles.planIcon}>
+            <Icon name="wallet" size={22} />
+          </span>
+          <span className={styles.planText}>
+            <span className={styles.planTitle}>{t('home.payday.title')}</span>
+            <span className={styles.planBody}>{t('home.payday.body', { date: formatShortDate(lastPayday(today, payday), lang) })}</span>
+          </span>
+          <Icon name="chevron" size={18} />
+        </button>
+      )}
+
       {current && (
         <section className={styles.hero} data-status={current.stats.week.status} aria-label={t('home.safe')}>
           <span className={styles.heroLabel}>{t('home.safe')}</span>
@@ -123,6 +143,7 @@ export default function Home({ onOpenEntry }: { onOpenEntry: (entry: Entry) => v
       </section>
 
       <RateLine />
+      <SalarySheet open={salaryOpen} onClose={() => setSalaryOpen(false)} />
     </Screen>
   )
 }

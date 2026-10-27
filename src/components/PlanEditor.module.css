@@ -160,3 +160,9 @@
 .balance[data-status='bad'] {
   color: var(--bad);
 }
+
+.carry {
+  margin-block-start: calc(var(--s-2) * -1);
+  color: var(--good);
+  font-size: var(--fs-sm);
+}

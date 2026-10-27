@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addDays, daysInclusive, localDateISO, nextPayday, parseLocalDate, relativeDay, weekStartOf } from './dates'
+import { addDays, daysInclusive, lastPayday, localDateISO, nextPayday, parseLocalDate, relativeDay, salaryDue, weekStartOf } from './dates'
 
 describe('dates', () => {
   it('localDateISO uses the local calendar day, not UTC', () => {
@@ -51,5 +51,37 @@ describe('plan dates', () => {
     expect(nextPayday('2026-10-23', 25)).toBe('2026-11-25') // paid Friday before a Sunday payday
     expect(nextPayday('2026-10-15', 25)).toBe('2026-11-25') // exactly 10 days early
     expect(nextPayday('2026-10-26', 28)).toBe('2026-11-28')
+  })
+})
+
+describe('payday nudge (SPEC §7)', () => {
+  it('lastPayday is the most recent usual payday on or before today, clamped to short months', () => {
+    expect(lastPayday('2026-10-27', 25)).toBe('2026-10-25')
+    expect(lastPayday('2026-10-25', 25)).toBe('2026-10-25')
+    expect(lastPayday('2026-10-20', 25)).toBe('2026-09-25')
+    expect(lastPayday('2026-01-05', 25)).toBe('2025-12-25')
+    expect(lastPayday('2027-02-28', 31)).toBe('2027-02-28')
+    expect(lastPayday('2027-03-15', 31)).toBe('2027-02-28')
+  })
+
+  it('is due once payday has passed and no plan started in this pay cycle', () => {
+    expect(salaryDue('2026-10-27', 25, ['2026-09-25'])).toBe(true)
+    expect(salaryDue('2026-10-25', 25, ['2026-09-25'])).toBe(true) // payday itself
+    expect(salaryDue('2026-10-24', 25, ['2026-09-25'])).toBe(false) // not yet
+  })
+
+  it('a salary taken up to 10 days early counts for this payday', () => {
+    expect(salaryDue('2026-10-27', 25, ['2026-10-20'])).toBe(false)
+    expect(salaryDue('2026-10-27', 25, ['2026-10-15'])).toBe(false) // exactly 10 days early
+    expect(salaryDue('2026-10-27', 25, ['2026-10-14'])).toBe(true)
+    expect(salaryDue('2026-11-01', 1, ['2026-10-29'])).toBe(false) // early, across a month boundary
+  })
+
+  it('a late salary stays due past the month boundary', () => {
+    expect(salaryDue('2026-11-03', 25, ['2026-09-25'])).toBe(true)
+  })
+
+  it('never before the first plan exists (the setup card covers that)', () => {
+    expect(salaryDue('2026-10-27', 25, [])).toBe(false)
   })
 })
