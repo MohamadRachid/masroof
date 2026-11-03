@@ -5,4 +5,4 @@ Phase 3 — Plan: deployed (2026-10-26) · envelopes, safe to spend, weekly limi
 Phase 4 — Salary flow: deployed (2026-10-27) · salary received, month close, leftover (savings/buffer/ignore), payday nudge
 Phase 5 — Trust: deployed (2026-10-27) · reconcile + adjustment + drift history, recurring + due card
 Phase 6 — Offline: done (2026-11-03) · no offline change dropped (sync needs a login; only data errors are final), devices converge, one tab syncs at a time · real phone + laptop check passed
-Phase 7 — Friends: deployed (2026-11-03) · separate accounts behind an invite code in the database (max 20), rest of Settings (categories, export, delete all, payday, warn %, week start) · pending: Ali applies the database lock, turns sign-ups on, one real sign-up on a phone
+Phase 7 — Friends: done (2026-11-03) · separate accounts behind an invite code in the database (max 20), rest of Settings (categories, export, delete all, payday, warn %, week start) · database lock applied and checked on the real database, first friend signed up
