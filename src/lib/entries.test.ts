@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { groupByDay, lastUsed, matchesSearch, quickTiles } from './entries'
+import { allowedCategories, groupByDay, lastUsed, matchesSearch, quickTiles } from './entries'
 
 type E = {
   id: string
@@ -118,5 +118,29 @@ describe('matchesSearch', () => {
   it('an empty query matches everything; a miss is false', () => {
     expect(matchesSearch(e, ['Transport'], '  ')).toBe(true)
     expect(matchesSearch(e, ['Transport'], 'rent')).toBe(false)
+  })
+})
+
+describe('allowedCategories', () => {
+  const cats = [
+    { id: 'food', kind: 'variable', archived: false },
+    { id: 'old', kind: 'variable', archived: true },
+    { id: 'salary', kind: 'income', archived: false },
+    { id: 'gone', kind: 'income', archived: true },
+  ]
+  const ids = (type: 'in' | 'out' | 'adjust', keep?: string) => allowedCategories(type, cats, keep).map((c) => c.id)
+
+  it('offers live categories of the right kind', () => {
+    expect(ids('out')).toEqual(['food'])
+    expect(ids('in')).toEqual(['salary'])
+    expect(ids('adjust')).toEqual(['food', 'salary'])
+  })
+
+  it('keeps an entry’s own category when it was archived', () => {
+    expect(ids('out', 'old')).toEqual(['food', 'old'])
+  })
+
+  it('keeps an entry’s own category when its kind changed', () => {
+    expect(ids('out', 'salary')).toEqual(['food', 'salary'])
   })
 })

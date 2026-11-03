@@ -5,7 +5,7 @@ import { useI18n, type Lang } from '../i18n'
 import { useData, useSettings } from '../lib/data'
 import { nowISO } from '../lib/dates'
 import { normalizeDigits, parseSignedAmount } from '../lib/money'
-import { createAccounts, updateSettings } from '../lib/store'
+import { createAccounts, deleteAllData, updateSettings } from '../lib/store'
 import { queueRows } from '../lib/sync'
 import styles from './FirstRun.module.css'
 
@@ -29,6 +29,8 @@ export default function FirstRun() {
   async function finish() {
     if (busy || parsed.bank === null || parsed.cash === null || parsed.usd === null) return
     setBusy(true)
+    // No live accounts here, so anything else still live is left over from after a delete on another device.
+    await deleteAllData(db)
     await createAccounts(db, userId, { bank: parsed.bank, cash: parsed.cash, usd: parsed.usd })
     if (settings) {
       await updateSettings(db, settings, { usual_payday: day, lang })

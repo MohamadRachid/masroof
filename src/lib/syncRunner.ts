@@ -87,6 +87,16 @@ export function syncNow() {
   runNow?.()
 }
 
+/** One full sync that can be waited for, for an action that must see everything first. False = it didn't get through. */
+export async function syncAndWait(db: MasroofDB, remote: Remote = supabaseRemote): Promise<boolean> {
+  if (!navigator.onLine) return false
+  let ok = false
+  await oneTabAtATime(`masroof-sync:${db.name}`, async () => {
+    ok = (await syncOnce(db, remote)).ok
+  })
+  return ok
+}
+
 /**
  * Push then pull: soon after every write, on start, on focus, when the
  * network returns, and every 60 s while the app is visible (SPEC §8).

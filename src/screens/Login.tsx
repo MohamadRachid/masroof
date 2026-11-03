@@ -27,20 +27,21 @@ function rememberEmail(email: string) {
   }
 }
 
-/** Email + password, typed once per device. "Create account" is for the very first time only. */
+/** Email + password, typed once per device. "Create account" is for the very first time only, with an invite code (SPEC §12). */
 export default function Login() {
   const { t } = useI18n()
   const online = useOnline()
   const [mode, setMode] = useState<'signIn' | 'signUp'>('signIn')
   const [email, setEmail] = useState(readLastEmail)
   const [password, setPassword] = useState('')
+  const [invite, setInvite] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<AuthErrorKey | null>(null)
 
   const creating = mode === 'signUp'
   const minLength = creating ? MIN_PASSWORD : 1
-  const canSubmit = online && !busy && looksLikeEmail(email) && password.length >= minLength
+  const canSubmit = online && !busy && looksLikeEmail(email) && password.length >= minLength && (!creating || invite.trim().length > 0)
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
@@ -48,7 +49,7 @@ export default function Login() {
     setBusy(true)
     setError(null)
     rememberEmail(email.trim())
-    const res = await (creating ? signUp : signIn)(email, password)
+    const res = await (creating ? signUp(email, password, invite) : signIn(email, password))
     if (res.ok) return // the session listener swaps this screen out
     setBusy(false)
     setError(res.error)
@@ -147,6 +148,38 @@ export default function Login() {
               {t('auth.passwordHint', { min: MIN_PASSWORD })}
             </p>
           )}
+
+          {creating && (
+            <>
+              <label className={styles.label} htmlFor="login-invite">
+                {t('auth.inviteLabel')}
+              </label>
+              <div className={styles.field}>
+                <Icon name="key" size={20} />
+                <input
+                  id="login-invite"
+                  className={styles.input}
+                  type="text"
+                  autoComplete="off"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  enterKeyHint="go"
+                  dir="ltr"
+                  value={invite}
+                  onChange={(e) => {
+                    setInvite(e.target.value)
+                    setError(null)
+                  }}
+                  aria-describedby="login-invite-hint"
+                />
+              </div>
+              <p id="login-invite-hint" className={styles.hint}>
+                {t('auth.inviteHint')}
+              </p>
+            </>
+          )}
+
           <p id="login-error" className={styles.error} role="alert" hidden={!errorText}>
             <Icon name="alert" size={16} />
             {errorText}

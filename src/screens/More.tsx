@@ -1,6 +1,8 @@
 import { useState, type CSSProperties, type ReactNode } from 'react'
 import { AccountSheet } from '../components/AccountSheet'
-import { Icon } from '../components/Icon'
+import { CategorySheet } from '../components/CategorySheet'
+import { DeleteDataSheet } from '../components/DeleteDataSheet'
+import { Icon, type IconName } from '../components/Icon'
 import { Equivalent, Money } from '../components/Money'
 import { ReconcileSheet } from '../components/ReconcileSheet'
 import { RecurringSheet } from '../components/RecurringSheet'
@@ -19,7 +21,9 @@ import {
   useRecurringPeriod,
   useSettings,
 } from '../lib/data'
+import { nowISO } from '../lib/dates'
 import type { Account, Recurring } from '../lib/db'
+import { collectExport, exportFileName, saveExportFile } from '../lib/exportData'
 import { convert, formatRate, parseRate, rateFormula, rateModeChanges } from '../lib/fx'
 import { balance, driftTrend, formatMoney, formatSigned, normalizeDigits } from '../lib/money'
 import { accountName, iconFor } from '../lib/names'
@@ -27,7 +31,7 @@ import { recurringState } from '../lib/recurring'
 import { updateSettings } from '../lib/store'
 import { showToast } from '../lib/toast'
 import { useToday } from '../lib/useToday'
-import { formatShortDate, ltr } from '../i18n/format'
+import { formatShortDate, formatWeekday, ltr } from '../i18n/format'
 import styles from './More.module.css'
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -120,6 +124,87 @@ function RateSection() {
           </span>
         </div>
       )}
+    </>
+  )
+}
+
+function PrefSelect({
+  icon,
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  icon: IconName
+  label: string
+  value: number
+  options: readonly { value: number; label: string }[]
+  onChange: (value: number) => void
+}) {
+  return (
+    <label className={styles.row}>
+      <span className={styles.rowIcon}>
+        <Icon name={icon} size={20} />
+      </span>
+      <span className={styles.rowLabel}>{label}</span>
+      <select className={styles.select} value={value} onChange={(e) => onChange(Number(e.target.value))}>
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  )
+}
+
+type PlanPref = 'usual_payday' | 'warn_pct' | 'week_start'
+const PAYDAYS = Array.from({ length: 31 }, (_, i) => i + 1)
+const WARN_STEPS = [50, 60, 70, 75, 80, 85, 90, 95, 100]
+const WEEK_DAYS = [0, 1, 2, 3, 4, 5, 6]
+
+/** SPEC §6 Settings: usual payday, warn % and week start. Each change shows an Undo toast. */
+function PlanPrefs() {
+  const { t, lang } = useI18n()
+  const { db } = useData()
+  const settings = useSettings()
+  if (!settings) return null
+
+  async function change(key: PlanPref, value: number) {
+    if (!settings || settings[key] === value) return
+    await updateSettings(db, settings, { [key]: value })
+    showToast({
+      message: t('toast.prefSaved'),
+      action: { label: t('toast.undo'), run: () => void updateSettings(db, { ...settings, [key]: value }, { [key]: settings[key] }) },
+    })
+  }
+
+  // A value set earlier that isn't one of the steps stays selectable.
+  const warnSteps = WARN_STEPS.includes(settings.warn_pct) ? WARN_STEPS : [...WARN_STEPS, settings.warn_pct].sort((a, b) => a - b)
+
+  return (
+    <>
+      <PrefSelect
+        icon="calendar"
+        label={t('more.payday')}
+        value={settings.usual_payday}
+        options={PAYDAYS.map((d) => ({ value: d, label: String(d) }))}
+        onChange={(v) => void change('usual_payday', v)}
+      />
+      <PrefSelect
+        icon="bell"
+        label={t('more.warnPct')}
+        value={settings.warn_pct}
+        options={warnSteps.map((p) => ({ value: p, label: `${p}%` }))}
+        onChange={(v) => void change('warn_pct', v)}
+      />
+      <PrefSelect
+        icon="calendar"
+        label={t('more.weekStart')}
+        value={settings.week_start}
+        options={WEEK_DAYS.map((d) => ({ value: d, label: formatWeekday(d, lang) }))}
+        onChange={(v) => void change('week_start', v)}
+      />
     </>
   )
 }
@@ -283,8 +368,21 @@ export default function More({ email }: { email: string | null }) {
   const [editing, setEditing] = useState<Account | null>(null)
   const [checking, setChecking] = useState<Account | null>(null)
   const [recurring, setRecurring] = useState<{ item: Recurring | null } | null>(null)
+  const [managingCategories, setManagingCategories] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const accounts = useAccounts() ?? []
+  const categories = useCategories() ?? []
+  const { db } = useData()
+  const today = useToday()
   const thumb = { '--i': LANGS.indexOf(lang) } as CSSProperties
+
+  async function exportData() {
+    try {
+      await saveExportFile(await collectExport(db, __APP_VERSION__, nowISO()), exportFileName(today))
+    } catch {
+      showToast({ message: t('toast.exportFailed') })
+    }
+  }
 
   return (
     <Screen title={t('more.title')}>
@@ -308,8 +406,22 @@ export default function More({ email }: { email: string | null }) {
         ))}
       </Section>
 
+      <Section title={t('more.section.categories')}>
+        <button type="button" className={styles.row} onClick={() => setManagingCategories(true)}>
+          <span className={styles.rowIcon}>
+            <Icon name="tag" size={20} />
+          </span>
+          <span className={styles.rowStack}>
+            <span>{t('more.categories')}</span>
+            <span className={styles.rowHint}>{t('more.categoriesCount', { count: categories.filter((c) => !c.archived).length })}</span>
+          </span>
+          <Icon name="chevron" size={18} />
+        </button>
+      </Section>
+
       <Section title={t('more.section.prefs')}>
         <RateSection />
+        <PlanPrefs />
         <div className={styles.row}>
           <span className={styles.rowIcon}>
             <Icon name="globe" size={20} />
@@ -334,6 +446,24 @@ export default function More({ email }: { email: string | null }) {
             ))}
           </div>
         </div>
+      </Section>
+
+      <Section title={t('more.section.data')}>
+        <button type="button" className={styles.row} onClick={() => void exportData()}>
+          <span className={styles.rowIcon}>
+            <Icon name="download" size={20} />
+          </span>
+          <span className={styles.rowStack}>
+            <span>{t('more.export')}</span>
+            <span className={styles.rowHint}>{t('more.exportHint')}</span>
+          </span>
+        </button>
+        <button type="button" className={styles.row} onClick={() => setDeleting(true)}>
+          <span className={styles.rowIcon}>
+            <Icon name="trash" size={20} />
+          </span>
+          <span className={styles.rowLabel}>{t('more.deleteAll')}</span>
+        </button>
       </Section>
 
       <Section title={t('more.section.account')}>
@@ -365,6 +495,8 @@ export default function More({ email }: { email: string | null }) {
       <AccountSheet account={editing} onClose={() => setEditing(null)} />
       <ReconcileSheet account={checking} onClose={() => setChecking(null)} />
       <RecurringSheet open={recurring !== null} item={recurring?.item ?? null} onClose={() => setRecurring(null)} />
+      <CategorySheet open={managingCategories} onClose={() => setManagingCategories(false)} />
+      <DeleteDataSheet open={deleting} onClose={() => setDeleting(false)} />
       <p className={styles.version}>{t('more.version', { version: __APP_VERSION__ })}</p>
     </Screen>
   )

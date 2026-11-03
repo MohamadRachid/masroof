@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Personal expense tracker for one user (Ali). PWA, React + Vite + TypeScript, Supabase. Android phone + laptop share one database.
+Personal expense tracker for Ali, and since 2026-11-03 for up to 19 friends too, each with their own separate data (SPEC §12). PWA, React + Vite + TypeScript, Supabase. Each person's devices (Android phone, iPhone, laptop) share their data.
 
 ## Read first
 `SPEC.md` is the contract. Build exactly what it says, in the phase order of §10. If a request conflicts with SPEC.md, say so and stop; do not silently deviate. If something is missing from the spec, ask, then add it to SPEC.md before coding it.
@@ -65,8 +65,8 @@ SPEC.md  CLAUDE.md  PROGRESS.md
 - Project ref `uejpxzrcyigxknmwbzae` (London). Never touch the org's other project `maallem`.
 - After `apply_migration` via MCP: rename the local file to the version from `list_migrations`, regenerate `src/lib/database.types.ts`, run `get_advisors`.
 - RLS: select/insert/update own rows; no delete policy (soft delete is enforced by the DB). `rates` is global, read-only to users. New users get categories + settings from trigger `private.handle_new_user`.
-- Test RLS with a rollback-only `do $$ … raise exception 'RESULT …' $$` block: fake `auth.users` rows, `set local role authenticated`, `request.jwt.claims`.
-- Sign-in is email + password (`src/lib/auth.ts` signIn/signUp). "Confirm email" must stay off; sign-ups off after the owner exists. Built-in mailer can't edit templates (needs custom SMTP) and sends 2 emails/hour, so never build email-based flows.
+- Test RLS with a rollback-only `do $$ … raise exception 'RESULT …' $$` block: fake `auth.users` rows, `set local role authenticated`, `request.jwt.claims`. `supabase/tests/friends_check.sql` is the full account-separation check; rerun it after any change to RLS, auth triggers or per-user tables.
+- Sign-in is email + password (`src/lib/auth.ts` signIn/signUp). "Confirm email" must stay off. Sign-ups are on, and trigger `private.check_signup_gate` on `auth.users` is the lock: the invite code and `max_users` live only in `private.signup_gate`, never in the repo, a migration or the app bundle. Built-in mailer can't edit templates (needs custom SMTP) and sends 2 emails/hour, so never build email-based flows.
 - Auth dashboard settings can't be set via MCP; ask Ali. Deleting auth users via MCP needs his explicit OK at the prompt.
 - FX: edge function `fx-daily` (supabase/functions, deploy via MCP, verify_jwt on) is called every 6 h by pg_cron job `fx-daily`; the anon JWT it sends is in Vault as `fx_daily_anon_key` (never commit it). Rate 1 on an entry = "no rate yet" (`isRealRate`); `repairPlaceholderRates` fixes those locally.
 
@@ -87,7 +87,7 @@ supabase db push         apply migrations (or via Supabase MCP)
 - Public repo: commits use the GitHub noreply email (repo-local git config).
 
 ## Do not
-- Add features not in SPEC.md (charts, OCR, bank import, AI categorisation, exchange/transfer entries, multi-user).
+- Add features not in SPEC.md (charts, OCR, bank import, AI categorisation, exchange/transfer entries, shared accounts, an admin screen).
 - Add a UI library, state library, or form library. React state + Dexie live queries is enough.
 - Change the schema without a new migration file and a matching Dexie version bump.
 - Run `supabase db reset` or anything destructive against the remote project.

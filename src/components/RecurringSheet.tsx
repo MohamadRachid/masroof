@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useI18n } from '../i18n'
 import { useAccounts, useCategories, useData, useEntries } from '../lib/data'
 import type { Account, Category, Entry, Recurring } from '../lib/db'
-import { lastUsed } from '../lib/entries'
+import { allowedCategories, lastUsed } from '../lib/entries'
 import { normalizeDigits, parseAmount } from '../lib/money'
 import { accountName, categoryName, iconFor } from '../lib/names'
 import { deleteRecurring, restoreRecurring, saveRecurring } from '../lib/store'
@@ -45,11 +45,6 @@ export function RecurringSheet({ open, item, onClose }: { open: boolean; item: R
   )
 }
 
-/** Categories for this type; an item's own category stays offered even after it was archived. */
-function allowedFor(type: Kind, categories: Category[], keep?: string): Category[] {
-  return categories.filter((c) => (!c.archived || c.id === keep) && (type === 'in' ? c.kind === 'income' : c.kind !== 'income'))
-}
-
 function RecurringForm({
   item,
   accounts,
@@ -70,8 +65,10 @@ function RecurringForm({
 
   // New items: Out, the last-used account, a fixed category (rent and bills are what repeats), today's day.
   const startType: Kind = item?.type === 'in' ? 'in' : 'out'
+  // An item's own category stays offered for its own type, even after it was archived or changed type.
+  const allowedFor = (forType: Kind) => allowedCategories(forType, categories, forType === startType ? item?.category_id : undefined)
   const pickCategory = (type: Kind, id: string | undefined) => {
-    const allowed = allowedFor(type, categories, item?.category_id)
+    const allowed = allowedFor(type)
     const fallback = type === 'out' ? (allowed.find((c) => c.kind === 'fixed') ?? allowed[0]) : allowed[0]
     return (allowed.some((c) => c.id === id) ? id : fallback?.id) ?? ''
   }
@@ -171,7 +168,7 @@ function RecurringForm({
       </div>
 
       <div ref={categoryRow} className={styles.scroller} role="radiogroup" aria-label={t('entry.category')}>
-        {allowedFor(type, categories, item?.category_id).map((c) => (
+        {allowedFor(type).map((c) => (
           <button key={c.id} type="button" role="radio" aria-checked={c.id === categoryId} className={styles.chip} onClick={() => setCategoryId(c.id)}>
             <Icon name={iconFor(c.icon)} size={16} />
             {categoryName(c, lang)}

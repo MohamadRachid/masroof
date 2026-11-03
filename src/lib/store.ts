@@ -1,7 +1,8 @@
-import type { Account, Entry, MasroofDB, Plan, PlanEnvelope, Reconciliation, Recurring, Settings } from './db'
+import type { Lang } from '../i18n/format'
+import type { Account, Category, Entry, MasroofDB, Plan, PlanEnvelope, Reconciliation, Recurring, Settings, SyncedTable } from './db'
 import { nowISO } from './dates'
 import { isRealRate, rateForDate } from './fx'
-import { balance, drift, round2 } from './money'
+import { balance, drift, plannable, round2 } from './money'
 import { queueRows } from './sync'
 
 // Every write: Dexie first, then the outbox (CLAUDE.md). Undo = write the previous version back.
@@ -355,6 +356,103 @@ export async function deleteRecurring(db: MasroofDB, item: Recurring): Promise<R
 /** Put a previous version back: undo for edit and delete. */
 export async function restoreRecurring(db: MasroofDB, snapshot: Recurring): Promise<void> {
   await queueRows(db, 'recurring', [{ ...snapshot, updated_at: nowISO() }])
+}
+
+// ── Categories (SPEC §6 Settings) ───────────────────────────────────────
+
+export type CategoryDraft = { name: string; kind: string; archived: boolean }
+export type CategoryReceipt = {
+  before: Category | null
+  after: Category
+  /** The envelope this save added to the open plan. */
+  envelope: PlanEnvelope | null
+  /** The envelope as it was, when this save gave its planned amount back to unassigned. */
+  zeroed: PlanEnvelope | null
+}
+
+/**
+ * Add or edit a category. A new one gets the name in both languages; a rename changes only the
+ * language in use. In the open plan, every spending category has an envelope (SPEC §6), so one
+ * that newly qualifies gets it at 0. One that stops qualifying (archived, or now income) can no
+ * longer be edited in the plan, so its planned amount goes back to unassigned; otherwise it would
+ * stay counted, invisible, and Assigned and Safe to spend would be wrong.
+ */
+export async function saveCategory(
+  db: MasroofDB,
+  userId: string,
+  existing: Category | null,
+  draft: CategoryDraft,
+  lang: Lang,
+): Promise<CategoryReceipt> {
+  const name = draft.name.trim()
+  return db.transaction('rw', [db.categories, db.plans, db.plan_envelopes, db.outbox], async () => {
+    const now = nowISO()
+    const fields = { kind: draft.kind, archived: draft.archived, updated_at: now }
+    const after: Category = existing
+      ? { ...existing, ...fields, ...(lang === 'ar' ? { name_ar: name } : { name_en: name }) }
+      : {
+          id: crypto.randomUUID(),
+          user_id: userId,
+          name_en: name,
+          name_ar: name,
+          icon: 'dots',
+          sort: Math.max(0, ...(await db.categories.toArray()).map((c) => c.sort)) + 10,
+          created_at: now,
+          deleted_at: null,
+          ...fields,
+        }
+    await queueRows(db, 'categories', [after])
+
+    const plan = await db.plans.filter((p) => !p.closed_at && !p.deleted_at).first()
+    const current =
+      plan && (await db.plan_envelopes.where('plan_id').equals(plan.id).filter((e) => e.category_id === after.id && !e.deleted_at).first())
+    const planned = plannable([after]).length > 0
+    let envelope: PlanEnvelope | null = null
+    let zeroed: PlanEnvelope | null = null
+    if (plan && !current && planned) {
+      envelope = { id: crypto.randomUUID(), user_id: userId, plan_id: plan.id, category_id: after.id, amount: 0, created_at: now, updated_at: now, deleted_at: null }
+      await queueRows(db, 'plan_envelopes', [envelope])
+    } else if (current && !planned && current.amount !== 0) {
+      zeroed = current
+      await queueRows(db, 'plan_envelopes', [{ ...current, amount: 0, updated_at: now }])
+    }
+    return { before: existing, after, envelope, zeroed }
+  })
+}
+
+/** Undo a save: put the previous version back, or remove a category that was just added. */
+export async function undoCategorySave(db: MasroofDB, receipt: CategoryReceipt): Promise<void> {
+  await db.transaction('rw', [db.categories, db.plan_envelopes, db.outbox], async () => {
+    const now = nowISO()
+    const previous = receipt.before ?? { ...receipt.after, deleted_at: now }
+    await queueRows(db, 'categories', [{ ...previous, updated_at: now }])
+    if (receipt.envelope) await queueRows(db, 'plan_envelopes', [{ ...receipt.envelope, deleted_at: now, updated_at: now }])
+    if (receipt.zeroed) await queueRows(db, 'plan_envelopes', [{ ...receipt.zeroed, updated_at: now }])
+  })
+}
+
+// ── Delete all data (SPEC §6 Settings, §12) ─────────────────────────────
+
+const WIPED_TABLES = ['accounts', 'recurring', 'entries', 'plans', 'plan_envelopes', 'reconciliations'] as const satisfies readonly SyncedTable[]
+
+/**
+ * Soft-delete like everything else, so it reaches the user's other devices. Categories and
+ * settings stay: with no accounts left, the app goes back to First run. Returns the rows removed.
+ * The caller syncs first, because this only reaches rows the device holds. First run calls it too,
+ * to clear rows that synced in after a delete (SPEC §12), so they can't count against a new plan.
+ */
+export async function deleteAllData(db: MasroofDB): Promise<number> {
+  return db.transaction('rw', [...WIPED_TABLES.map((t) => db.tableOf(t)), db.outbox], async () => {
+    const now = nowISO()
+    let removed = 0
+    for (const table of WIPED_TABLES) {
+      const rows = (await db.tableOf(table).toArray()).filter((r) => !r.deleted_at)
+      if (rows.length === 0) continue
+      await queueRows(db, table, rows.map((r) => ({ ...r, deleted_at: now, updated_at: now })))
+      removed += rows.length
+    }
+    return removed
+  })
 }
 
 /** Post = an ordinary entry from the item, named after it and pointing at it (SPEC §7). */

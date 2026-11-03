@@ -44,10 +44,13 @@ export async function signIn(email: string, password: string): Promise<AuthResul
   }
 }
 
-/** One-time account creation. Needs "Confirm email" off in Supabase, otherwise no session comes back. */
-export async function signUp(email: string, password: string): Promise<AuthResult> {
+/**
+ * One-time account creation. Needs "Confirm email" off in Supabase, otherwise no session comes back.
+ * The database checks the invite code and the account limit, and removes the code again (SPEC §12).
+ */
+export async function signUp(email: string, password: string, invite: string): Promise<AuthResult> {
   try {
-    const { data, error } = await supabase.auth.signUp({ email: email.trim(), password })
+    const { data, error } = await supabase.auth.signUp({ email: email.trim(), password, options: { data: { invite_code: invite.trim() } } })
     if (error) return fail(error)
     return data.session ? { ok: true } : { ok: false, error: 'notConfirmed' }
   } catch (err) {

@@ -1,0 +1,122 @@
+.list {
+  display: flex;
+  flex-direction: column;
+  margin-inline: calc(var(--s-5) * -1);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  width: 100%;
+  min-height: 60px;
+  padding: var(--s-2) var(--s-5);
+  color: var(--text);
+  text-align: start;
+  transition: background-color var(--dur-2) ease;
+}
+
+.row + .row {
+  box-shadow: inset 0 1px 0 var(--line);
+}
+
+.row:active {
+  background: var(--surface-2);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .row:hover {
+    background: var(--surface-2);
+  }
+}
+
+.row[data-archived] .icon,
+.row[data-archived] .stack > :first-child {
+  opacity: 0.55;
+}
+
+.icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-1);
+  background: var(--surface-2);
+}
+
+.stack {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.hint {
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.label {
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+
+.field input {
+  width: 100%;
+  height: 52px;
+  padding-inline: var(--s-4);
+  border: 0;
+  border-radius: var(--r-2);
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  color: var(--text);
+  font-size: var(--fs-lg);
+}
+
+.field input:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 1.5px var(--text);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.chip {
+  height: 40px;
+  padding-inline: var(--s-3);
+  border-radius: var(--r-full);
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  transition:
+    background-color var(--dur-1) ease,
+    color var(--dur-1) ease,
+    transform 160ms var(--ease-out);
+}
+
+.chip:active {
+  transform: scale(0.97);
+}
+
+.chip[aria-checked='true'] {
+  background: var(--primary);
+  box-shadow: none;
+  color: var(--on-primary);
+}

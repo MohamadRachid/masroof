@@ -87,3 +87,15 @@ export function matchesSearch(entry: Pick<EntryLike, 'note' | 'amount'>, categor
   const qDigits = q.replace(/,/g, '')
   return formatMoney(entry.amount).replace(/,/g, '').includes(qDigits) || String(entry.amount).includes(qDigits)
 }
+
+/**
+ * The categories an entry of this type can use. `keep`, the entry's own category, stays offered even
+ * after it was archived or changed type, so editing something else can't quietly move the entry.
+ */
+export function allowedCategories<C extends { id: string; kind: string; archived: boolean }>(type: string, categories: readonly C[], keep?: string): C[] {
+  return categories.filter((c) => {
+    if (c.id === keep) return true
+    if (c.archived) return false
+    return type === 'adjust' || (type === 'in' ? c.kind === 'income' : c.kind !== 'income')
+  })
+}

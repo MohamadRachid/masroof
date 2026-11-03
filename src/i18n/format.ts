@@ -19,6 +19,11 @@ export function formatLongDate(date: Date, lang: Lang): string {
   return new Intl.DateTimeFormat(locales[lang], { weekday: 'long', day: 'numeric', month: 'long' }).format(date)
 }
 
+/** A day's name; day 0 = Sunday … 6 = Saturday. 1 January 2023 was a Sunday. */
+export function formatWeekday(day: number, lang: Lang): string {
+  return new Intl.DateTimeFormat(locales[lang], { weekday: 'long' }).format(new Date(2023, 0, 1 + day))
+}
+
 /** "20 Oct" / "20 أكتوبر" from a YYYY-MM-DD local date. */
 export function formatShortDate(iso: string, lang: Lang): string {
   const [y = 1970, m = 1, d = 1] = iso.split('-').map(Number)

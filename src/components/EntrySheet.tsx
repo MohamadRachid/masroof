@@ -4,7 +4,7 @@ import { formatShortDate, ltr } from '../i18n/format'
 import { useAccounts, useCategories, useCurrentPlan, useData, useEntries, useLatestRate, useSettings } from '../lib/data'
 import { localDateISO, relativeDay } from '../lib/dates'
 import type { Account, Category, Entry } from '../lib/db'
-import { lastUsed, quickTiles, type QuickTile } from '../lib/entries'
+import { allowedCategories, lastUsed, quickTiles, type QuickTile } from '../lib/entries'
 import { effectiveRate, formatRate, isRealRate, rateFormula } from '../lib/fx'
 import { formatMoney, impactOf, normalizeDigits, parseAdjustAmount, parseAmount, round2, type PlanStats } from '../lib/money'
 import { accountName, categoryName, iconFor } from '../lib/names'
@@ -74,12 +74,6 @@ export function EntrySheet({
   )
 }
 
-function allowedFor(type: EntryType, categories: Category[]): Category[] {
-  const live = categories.filter((c) => !c.archived)
-  if (type === 'adjust') return live
-  return live.filter((c) => (type === 'in' ? c.kind === 'income' : c.kind !== 'income'))
-}
-
 function EntryForm({
   entry,
   accounts,
@@ -104,8 +98,10 @@ function EntryForm({
   const startType: EntryType = entry ? (entry.type as EntryType) : 'out'
   const defaults = entry ? null : lastUsed(entries, 'out')
   const pickAccount = (id: string | undefined) => (accounts.some((a) => a.id === id) ? id : accounts[0]?.id) ?? ''
-  const pickCategory = (type: EntryType, id: string | undefined) => {
-    const allowed = allowedFor(type, categories)
+  // An entry's own category stays offered for its own type, even archived, so fixing a note can't move it.
+  const allowedFor = (forType: EntryType) => allowedCategories(forType, categories, forType === startType ? entry?.category_id : undefined)
+  const pickCategory = (forType: EntryType, id: string | undefined) => {
+    const allowed = allowedFor(forType)
     return (allowed.some((c) => c.id === id) ? id : allowed[0]?.id) ?? ''
   }
 
@@ -130,7 +126,7 @@ function EntryForm({
   const account = accounts.find((a) => a.id === accountId)
   const category = categories.find((c) => c.id === categoryId)
   const valid = amount !== null && !!account && !!category
-  const visible = allowedFor(type, categories)
+  const visible = allowedFor(type)
   const shownRate = entry ? (rateOverride ?? entry.rate_usd_ghs) : rate
 
   // SPEC §6 / rule 4: warn while typing, before saving. New 'out' entries only.
@@ -142,7 +138,9 @@ function EntryForm({
       : null
   const tiles = entry
     ? []
-    : quickTiles(entries, today).filter((tile) => accounts.some((a) => a.id === tile.account_id) && categories.some((c) => c.id === tile.category_id))
+    : quickTiles(entries, today).filter(
+        (tile) => accounts.some((a) => a.id === tile.account_id) && allowedCategories(tile.type, categories).some((c) => c.id === tile.category_id),
+      )
 
   function switchType(next: EntryType) {
     if (next === type) return

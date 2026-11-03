@@ -1,6 +1,6 @@
 # Personal Expense Tracker — Spec v1
 
-Owner: Ali. Single user, personal, never launched. Phone (Android) + laptop, same data.
+Owner: Ali. Personal, never launched. Phone (Android) + laptop, same data. Since 2026-11-03, up to 20 of Ali's friends and connections in total can have their own separate accounts (§12).
 Purpose: register every cedi in/out in seconds, always know the real balance, and keep spending inside a monthly salary plan with weekly limits.
 
 This file is the contract. Claude Code builds from it, in the order in §10. Anything not in here is out of scope until the spec changes.
@@ -20,8 +20,8 @@ This file is the contract. Claude Code builds from it, in the order in §10. Any
 ## 2. Stack
 
 - **Frontend:** React 18 + Vite + TypeScript, PWA (`vite-plugin-pwa`), mobile-first, dark theme default, installable on Android Chrome and desktop Chrome.
-- **Backend:** Supabase (Postgres, Auth, Edge Functions, cron). One project, one user.
-- **Auth:** email + password, typed once per device (changed 2026-10-26 from email OTP: one user, no emails needed). Supabase "Confirm email" is off; after the owner creates the account, sign-ups are disabled (Supabase dashboard → Auth → disable new users). RLS on every table: `user_id = auth.uid()`.
+- **Backend:** Supabase (Postgres, Auth, Edge Functions, cron). One project, up to 20 users (§12).
+- **Auth:** email + password, typed once per device (changed 2026-10-26 from email OTP: one user, no emails needed). Supabase "Confirm email" is off; sign-ups are on, but the database refuses any new account without the invite code or past the limit (§12, changed 2026-11-03). RLS on every table: `user_id = auth.uid()`.
 - **Local cache / offline:** Dexie (IndexedDB) mirror of all tables + outbox queue. See §8.
 - **i18n:** EN + AR, switchable, RTL for AR. Latin digits in both.
 - **Hosting:** GitHub repo, deployed to Vercel or Netlify (free, HTTPS, auto-deploy from `main`). GitHub Pages also fine.
@@ -153,7 +153,7 @@ Implementation notes (phase 3, 2026-10-26):
 ## 6. Screens
 
 ### Login
-Email + password (with show/hide). "Create account" is used once, the first time. Once logged in, session persists; never asks again unless signed out. Offline with a stored session, the app opens straight away.
+Email + password (with show/hide). "Create account" is used once per person, the first time, and also asks for the invite code (§12). Once logged in, session persists; never asks again unless signed out. Offline with a stored session, the app opens straight away.
 
 ### First run (once)
 Language → opening balance for bank, cash, usd → usual payday → done. No plan yet; Home shows balances and a "Set up your first salary plan" card.
@@ -196,6 +196,7 @@ Phase 4 notes (2026-10-27): **Salary received** is the Plan screen's main button
 - Reconcile: per account, last reconcile date + drift; tap → sheet. Drift history list (date, diff) with a one-line trend: "drift shrinking" / "drift growing, mostly Cash".
 - Settings: language, rate mode + manual rate, usual payday, warn %, week start, accounts (name/opening), categories (add/rename/archive, set kind), export JSON, delete all data (typed confirmation).
 Phase 5 notes (2026-10-27): More runs Recurring, Reconcile, then the settings groups. Each recurring row shows its day, account and state in this plan (due now / posted on a date / next on a date). Each Reconcile row shows the account's last check and its drift. The drift history shows the latest 10 checks, with a "Show all" button. The trend line (§7) sits above the history.
+Phase 7 notes (2026-11-03): no earlier phase listed the rest of Settings, so it was built here. Categories open from one row in More: a list, then a form. A new category gets its name in both languages, the default icon, and a 0 envelope in the open plan; a rename changes only the language in use. Renaming Buffer in English turns off "Add to next Buffer", because that feature finds it by name, and the form says so. Saving closes the sheet so the Undo toast can be reached. Archiving a category, or changing it to income, gives its planned amount in the open plan back to unassigned (Undo restores it), because the plan editor no longer lists it. Archived categories leave Add's chips and quick tiles, but an entry or recurring item keeps its own category when edited. Export holds the user's own live rows, not rates, and uses the share sheet where a phone can share the file, else a download. Delete all data needs the word DELETE (حذف in Arabic) typed; it soft-deletes accounts, entries, plans, envelopes, recurring items and balance checks, keeps categories and settings, and returns to First run on every device. It needs a connection and syncs first; if that fails, nothing is deleted.
 
 ---
 
@@ -275,10 +276,54 @@ Each phase ends with the app runnable on the phone via the deployed URL. Do not 
 4. **Salary flow.** Salary received, month close summary, leftover handling, payday nudge.
 5. **Trust.** Reconcile + adjustment + drift history. Recurring + due banner.
 6. **Offline.** Dexie mirror, outbox, sync worker, unsynced indicator. Install on phone and laptop; verify an entry made offline on the phone shows on the laptop after reconnect. (Note 2026-10-26: the Dexie mirror, outbox, push/pull sync and the unsynced chip shipped in phase 1, because CLAUDE.md requires the UI to read only from Dexie. Phase 6 keeps offline hardening and the two-device check.)
-7. **v2 (not now):** Web Push on Android/desktop for weekly-limit and payday nudges (edge function + cron + VAPID). Export to CSV.
+7. **Friends (added 2026-11-03).** Separate accounts for up to 20 people, see §12.
+8. **v2 (not now):** Web Push on Android/desktop for weekly-limit and payday nudges (edge function + cron + VAPID). Export to CSV.
 
 ---
 
 ## 11. Out of scope
 
-Charts beyond simple bars, receipt OCR, bank/MoMo import, AI categorisation, multi-user, sharing, currency exchange entries, investment tracking, notifications (until v2).
+Charts beyond simple bars, receipt OCR, bank/MoMo import, AI categorisation, shared or family accounts, sharing anything between users, an admin screen, currency exchange entries, investment tracking, notifications (until v2).
+
+---
+
+## 12. Friends (added 2026-11-03)
+
+**Objective.** Ali's friends and connections can use Masroof too, each with their own private balances, entries and plans. At most 20 accounts in total, Ali's included, and they may all be on at once. It stays a personal tool shared with people Ali knows, not a public product. Stack, commands, layout and code style are unchanged (§2, CLAUDE.md).
+
+**Joining.**
+- Ali gives a friend the link and the invite code. There is one code for everyone.
+- The friend installs the app, taps Create account, and enters their email, their own password and the code. No email is sent. They then get the normal First run.
+- The database checks the code and the limit when the account is created. A check in the app alone would protect nothing: the repo and the public key are public, so anyone can call the server directly.
+- The code and the limit live only in the database, never in the public repo. Ali can change either at any time. Accounts that already exist are not affected.
+- A wrong code and a full app show the same message, so the app never reveals which it was.
+- The setup order matters: the database check goes live first, and only then does Ali turn sign-ups on in the dashboard, so there is never a moment when anyone can join.
+
+**What stays simple.**
+- No admin screen, no email flows, nothing shared between accounts. The daily rate is the one thing everyone reads.
+- Forgotten password: Ali resets it in the Supabase SQL Editor.
+- Removing someone: Ali deletes the user in the Supabase dashboard, and all of their data goes with it. This is the only real erase: "Delete all data" in the app is a soft delete like everything else, so those rows leave every device but stay in the database until the user is deleted.
+- Currencies stay GHS and USD (§3).
+- Ali can read everyone's data from the Supabase dashboard. The app doesn't mention this; Ali tells friends before they join.
+
+**Known limits, accepted for a small group of people Ali knows.**
+- A change made on another device while it was offline, and synced after a Delete all data, survives it. Deleting again clears it, and First run clears leftovers.
+- Foreign keys don't check ownership: someone who knew another user's random account id could point a row of their own at it, which would stop that user being deleted until the row is removed. Those ids are never shown to anyone else.
+- Anyone can test whether an email already has an account, without the code. Supabase answers that before the database check runs.
+- Only Supabase's own rate limit slows down guessing, so the code should be long and random.
+
+**Success criteria.**
+1. The right code creates an account that opens on First run with empty balances and its own categories.
+2. A wrong or missing code is refused, including a direct server call that skips the app.
+3. The 21st account is refused even with the right code.
+4. On the real database, in a test that rolls back, account A can't read, change or add rows belonging to account B in any of the 8 per-user tables.
+5. Ali's login and data don't change, and his phone and laptop keep syncing.
+6. Deleting a friend's user removes all of their rows and nobody else's.
+7. Works at 390px and on desktop, in EN and AR. Adding an expense is no slower. Typecheck and tests pass.
+
+**Testing.** Unit test for the new error message in `authErrors`. Rollback-only SQL blocks on the real database for criteria 2 to 4 and 6, using the method in CLAUDE.md. One real sign-up on a phone for criterion 1.
+
+**Boundaries.**
+- Always: enforce limits in the database; new migration file; check AR.
+- Ask first: anything that would touch Ali's existing rows; dashboard settings (Ali changes those himself).
+- Never: put the invite code in the repo, in a migration or in the app bundle; touch the `maallem` project; build anything that sends email.

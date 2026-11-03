@@ -22,6 +22,10 @@ describe('authErrorKey — password sign-in', () => {
   it('sign-ups turned off', () => {
     expect(authErrorKey({ code: 'signup_disabled', status: 422 }, true)).toBe('notAllowed')
   })
+
+  it('the database refused a new account: wrong invite code or full, same message for both', () => {
+    expect(authErrorKey({ code: 'unexpected_failure', status: 500, message: 'Database error saving new user' }, true)).toBe('inviteRefused')
+  })
 })
 
 describe('authErrorKey — general', () => {
