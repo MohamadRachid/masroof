@@ -24,6 +24,10 @@ describe('authErrorKey — password sign-in', () => {
   })
 
   it('the database refused a new account: wrong invite code or full, same message for both', () => {
+    // What the real server answered, 2026-11-03.
+    expect(authErrorKey({ code: 'P0001', status: 500, message: 'signup refused' }, true)).toBe('inviteRefused')
+    expect(authErrorKey({ status: 500, message: 'signup refused' }, true)).toBe('inviteRefused')
+    // How Supabase Auth reports the same failure when it hides the database's own message.
     expect(authErrorKey({ code: 'unexpected_failure', status: 500, message: 'Database error saving new user' }, true)).toBe('inviteRefused')
   })
 })

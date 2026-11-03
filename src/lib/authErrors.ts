@@ -40,7 +40,7 @@ export function authErrorKey(err: AuthErrorLike, online: boolean): AuthErrorKey 
   if (err.status === 0 || message.includes('failed to fetch') || message.includes('network')) return 'offline'
   if (message.includes('invalid format') || message.includes('validate email')) return 'invalidEmail'
   // The sign-up gate in the database (SPEC §12) refused it: a wrong code or a full app, deliberately not told apart.
-  if (message.includes('database error saving new user')) return 'inviteRefused'
+  if (message.includes('signup refused') || message.includes('database error saving new user')) return 'inviteRefused'
   return 'unknown'
 }
 
