@@ -255,23 +255,25 @@ function EntryForm({
           if (e.target === e.currentTarget) amountInput.current?.focus()
         }}
       >
-        <input
-          ref={amountInput}
-          aria-label={t('entry.amount')}
-          className={styles.amount}
-          value={amountText}
-          onChange={(e) => setAmountText(normalizeDigits(e.target.value))}
-          onKeyDown={onEnter}
-          inputMode="decimal"
-          enterKeyHint="done"
-          autoComplete="off"
-          placeholder="0.00"
-          dir="ltr"
-          style={{ width: `${Math.max(amountText.length, 4) + 1}ch` }}
-          data-autofocus={entry ? undefined : true}
-          // The form mounts after its data loads, so focus here, not from the sheet.
-          autoFocus={!entry}
-        />
+        <span className={styles.field} data-value={amountText || '0.00'}>
+          <input
+            ref={amountInput}
+            aria-label={t('entry.amount')}
+            className={styles.amount}
+            value={amountText}
+            onChange={(e) => setAmountText(normalizeDigits(e.target.value))}
+            onKeyDown={onEnter}
+            inputMode="decimal"
+            enterKeyHint="done"
+            autoComplete="off"
+            placeholder="0.00"
+            dir="ltr"
+            size={1}
+            data-autofocus={entry ? undefined : true}
+            // The form mounts after its data loads, so focus here, not from the sheet.
+            autoFocus={!entry}
+          />
+        </span>
         {canSwitch ? (
           <button
             type="button"

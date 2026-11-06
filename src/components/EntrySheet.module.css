@@ -56,21 +56,46 @@
   display: flex;
   align-items: baseline;
   justify-content: center;
-  gap: var(--s-2);
+  gap: var(--s-3);
   padding-block: var(--s-2) var(--s-1);
   cursor: text;
 }
 
-.amount {
-  max-width: 100%;
-  min-width: 4ch;
-  border: 0;
-  background: none;
-  color: var(--text);
+/*
+ * The amount's width comes from a hidden copy of its text (::after, same font), not from
+ * `ch`: some phones size `ch` smaller than the digits they draw, which cut "0.00" off.
+ * Long amounts shrink the track and scroll inside the input rather than push the currency out.
+ */
+.field {
+  display: inline-grid;
+  grid-template-columns: minmax(0, auto);
+  min-width: 0;
   font-family: var(--font-num);
   font-size: 3.25rem;
   line-height: 1;
   letter-spacing: -0.01em;
+}
+
+.field::after,
+.amount {
+  grid-area: 1 / 1;
+  min-width: 0;
+  padding-inline: 0.15em;
+  font: inherit;
+  letter-spacing: inherit;
+}
+
+.field::after {
+  content: attr(data-value) ' ';
+  visibility: hidden;
+  white-space: pre;
+}
+
+.amount {
+  width: auto;
+  border: 0;
+  background: none;
+  color: var(--text);
   text-align: center;
   caret-color: var(--text);
   transition: color var(--dur-2) ease;
