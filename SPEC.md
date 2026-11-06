@@ -92,16 +92,23 @@ Default categories (seeded on first run):
 | Rent      | fixed    |
 | Bills     | fixed    |
 | Data/Phone| fixed    |
+| Weekly food allowance | fixed |
 | Food      | variable |
 | Groceries | variable |
 | Transport | variable |
 | Fun       | variable |
+| Football  | variable |
+| Padel     | variable |
 | Health    | variable |
+| Barbershop| variable |
 | Family    | variable |
+| Transfer  | variable |
 | Buffer    | variable |
 | Savings   | savings  |
 | Salary    | income   |
 | Other     | variable |
+
+Added 2026-11-06 (migration `more_categories`): Weekly food allowance, Football, Padel, Barbershop, Transfer, for every account. Weekly food allowance is the fixed amount paid each Sunday for the coming week's lunches (Monday to Saturday), so it is `fixed` and never counts toward the weekly limit. Transfer is money sent to someone else, counted as spending; it is not a move between the user's own accounts (still out of scope, §9). Existing accounts got them with a 0 envelope in their open plan, unless they already had a category with that name in either language.
 
 Implementation notes (phase 0, migration `20261026105040_init`):
 - `rates` is global reference data (one row per day, written by the cron with the service role), so it has no `user_id`. Signed-in users can only read it.

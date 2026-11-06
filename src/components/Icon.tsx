@@ -84,6 +84,53 @@ const paths = {
       <circle cx="5" cy="12" r="1" />
     </>
   ),
+  // added 2026-11-06 (migration more_categories)
+  sandwich: (
+    <>
+      <path d="m2.37 11.223 8.372-6.777a2 2 0 0 1 2.516 0l8.371 6.777" />
+      <path d="M21 15a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-5.25" />
+      <path d="M3 15a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h9" />
+      <path d="m6.67 15 6.13 4.6a2 2 0 0 0 2.8-.4l3.15-4.2" />
+      <rect width="20" height="4" x="2" y="11" rx="1" />
+    </>
+  ),
+  // Lucide "volleyball", tagged football/soccer there.
+  ball: (
+    <>
+      <path d="M11.1 7.1a16.55 16.55 0 0 1 10.9 4" />
+      <path d="M12 12a12.6 12.6 0 0 1-8.7 5" />
+      <path d="M16.8 13.6a16.55 16.55 0 0 1-9 7.5" />
+      <path d="M20.7 17a12.8 12.8 0 0 0-8.7-5 13.3 13.3 0 0 1 0-10" />
+      <path d="M6.3 3.8a16.55 16.55 0 0 0 1.9 11.5" />
+      <circle cx="12" cy="12" r="10" />
+    </>
+  ),
+  // Lucide has no racket; a padel racket drawn in its style (teardrop head, so it can't pass for search).
+  racket: (
+    <>
+      <path d="M8.5 15.5V9.5a6 6 0 1 1 6 6z" />
+      <path d="m8.5 15.5-4.5 4.5" />
+      <path d="M14.5 7h.01M12 9.5h.01M17 9.5h.01M14.5 12h.01" />
+    </>
+  ),
+  scissors: (
+    <>
+      <circle cx="6" cy="6" r="3" />
+      <path d="M8.12 8.12 12 12" />
+      <path d="M20 4 8.12 15.88" />
+      <circle cx="6" cy="18" r="3" />
+      <path d="M14.8 14.8 20 20" />
+    </>
+  ),
+  handCoins: (
+    <>
+      <path d="M11 15h2a2 2 0 1 0 0-4h-3c-.6 0-1.1.2-1.4.6L3 17" />
+      <path d="m7 21 1.6-1.4c.3-.4.8-.6 1.4-.6h4c1.1 0 2.1-.4 2.8-1.2l4.6-4.4a2 2 0 0 0-2.75-2.91l-4.2 3.9" />
+      <path d="m2 16 6 6" />
+      <circle cx="16" cy="9" r="2.9" />
+      <circle cx="6" cy="5" r="3" />
+    </>
+  ),
 
   // interface
   plus: (

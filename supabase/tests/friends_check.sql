@@ -46,7 +46,7 @@ begin
   -- ── 1. The right code works (spaces and capitals don't matter), and starts fresh ──
   insert into auth.users (id, email, raw_user_meta_data) values (a, 'a@test.invalid', '{"invite_code": " test-code "}');
   insert into auth.users (id, email, raw_user_meta_data) values (b, 'b@test.invalid', '{"invite_code": "Test-Code", "x": 1}');
-  if (select count(*) from public.categories where user_id = a) <> 13 then raise exception 'RESULT FAILED: a new account did not get its categories'; end if;
+  if (select count(*) from public.categories where user_id = a) <> 18 then raise exception 'RESULT FAILED: a new account did not get its categories'; end if;
   if (select count(*) from public.settings where user_id = a) <> 1 then raise exception 'RESULT FAILED: a new account did not get its settings'; end if;
   if (select count(*) from public.accounts where user_id = a) <> 0 then raise exception 'RESULT FAILED: a new account does not start empty'; end if;
 
