@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { convert, effectiveRate, formatRate, isRealRate, otherCurrency, parseRate, rateForDate, rateModeChanges } from './fx'
+import { amountInAccount, convert, effectiveRate, formatRate, isRealRate, otherCurrency, parseRate, rateForDate, rateModeChanges } from './fx'
 
 describe('effectiveRate (SPEC §5)', () => {
   const latest = { usd_ghs: 15.42, date: '2026-10-26' }
@@ -34,6 +34,31 @@ describe('equivalents', () => {
     expect(isRealRate(1)).toBe(false)
     expect(isRealRate(11.622)).toBe(true)
     expect(isRealRate(0)).toBe(false)
+  })
+})
+
+describe('amountInAccount (SPEC §6 Add, typed currency)', () => {
+  it('keeps an amount typed in the account currency as it is, even with no rate', () => {
+    expect(amountInAccount(20, 'GHS', 'GHS', 15.42)).toBe(20)
+    expect(amountInAccount(20, 'USD', 'USD', 1)).toBe(20)
+    expect(amountInAccount(-5.5, 'GHS', 'GHS', 15.42)).toBe(-5.5)
+  })
+
+  it('converts USD typed for a GHS account at the given rate', () => {
+    expect(amountInAccount(20, 'USD', 'GHS', 15.42)).toBe(308.4)
+  })
+
+  it('converts GHS typed for a USD account, rounded to cents', () => {
+    expect(amountInAccount(100, 'GHS', 'USD', 11.622)).toBe(8.6)
+  })
+
+  it('refuses to convert without a real rate', () => {
+    expect(amountInAccount(20, 'USD', 'GHS', 1)).toBeNull()
+    expect(amountInAccount(20, 'GHS', 'USD', 0)).toBeNull()
+  })
+
+  it('refuses an amount that converts to 0.00', () => {
+    expect(amountInAccount(0.01, 'GHS', 'USD', 15.42)).toBeNull()
   })
 })
 

@@ -204,6 +204,14 @@ const paths = {
       <path d="M21 13v1a4 4 0 0 1-4 4H3" />
     </>
   ),
+  swap: (
+    <>
+      <path d="M8 3 4 7l4 4" />
+      <path d="M4 7h16" />
+      <path d="m16 21 4-4-4-4" />
+      <path d="M20 17H4" />
+    </>
+  ),
   trendUp: (
     <>
       <path d="M22 7 13.5 15.5 8.5 10.5 2 17" />

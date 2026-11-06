@@ -337,3 +337,51 @@
 .impact span[data-status='bad'] {
   color: var(--bad);
 }
+
+/* ── typed currency: tap to type the amount in the other currency (SPEC §6) ── */
+.curBtn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 34px;
+  padding-inline: 12px 10px;
+  border-radius: var(--r-full);
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--text-2);
+  font-size: var(--fs-md);
+  letter-spacing: 0.04em;
+  transition:
+    color var(--dur-1) ease,
+    box-shadow var(--dur-1) ease,
+    transform 160ms var(--ease-out);
+}
+
+/* A bigger hit area than the pill draws. */
+.curBtn::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+}
+
+.curBtn:active {
+  transform: scale(0.97);
+}
+
+.curBtn[data-converting] {
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--text-3);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .curBtn:hover {
+    color: var(--text);
+  }
+}
+
+.converted {
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}

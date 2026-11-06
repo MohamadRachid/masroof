@@ -5,7 +5,7 @@ import { useAccounts, useCategories, useCurrentPlan, useData, useEntries, useLat
 import { localDateISO, relativeDay } from '../lib/dates'
 import type { Account, Category, Entry } from '../lib/db'
 import { allowedCategories, lastUsed, quickTiles, type QuickTile } from '../lib/entries'
-import { effectiveRate, formatRate, isRealRate, rateFormula } from '../lib/fx'
+import { amountInAccount, effectiveRate, formatRate, isRealRate, otherCurrency, rateFormula, type Currency } from '../lib/fx'
 import { formatMoney, impactOf, normalizeDigits, parseAdjustAmount, parseAmount, round2, type PlanStats } from '../lib/money'
 import { accountName, categoryName, iconFor } from '../lib/names'
 import { addEntry, deleteEntry, restoreEntry, updateEntry, type EntryType } from '../lib/store'
@@ -114,7 +114,10 @@ function EntryForm({
   const [busy, setBusy] = useState(false)
   // Editing never changes the frozen rate unless Ali taps "update rate" (SPEC §9).
   const [rateOverride, setRateOverride] = useState<number | null>(null)
+  // The currency the amount is typed in; null = the account's (SPEC §6 "typed currency").
+  const [typedCur, setTypedCur] = useState<Currency | null>(null)
   const categoryRow = useRef<HTMLDivElement>(null)
+  const amountInput = useRef<HTMLInputElement>(null)
 
   // The default category may sit past the edge of the scrolling row; bring it into view.
   useEffect(() => {
@@ -122,12 +125,20 @@ function EntryForm({
   }, [type])
 
   // An adjustment keeps its sign (a reconcile can take money off); in/out amounts are always positive.
-  const amount = type === 'adjust' ? parseAdjustAmount(amountText) : parseAmount(amountText)
+  const typed = type === 'adjust' ? parseAdjustAmount(amountText) : parseAmount(amountText)
   const account = accounts.find((a) => a.id === accountId)
   const category = categories.find((c) => c.id === categoryId)
+  const shownRate = entry ? (rateOverride ?? entry.rate_usd_ghs) : rate
+  // In/Out amounts may be typed in the other currency when a real rate exists. The typed
+  // currency follows the account chips until tapped, and converts once, at the rate this
+  // entry saves; `amount` is always what gets stored, in the account's currency.
+  const accountCur = account?.currency ?? ''
+  const canSwitch = type !== 'adjust' && accountCur !== '' && isRealRate(shownRate)
+  const typedCurrency: string = canSwitch ? (typedCur ?? accountCur) : accountCur
+  const converting = typedCurrency !== accountCur
+  const amount = typed === null || !account ? null : amountInAccount(typed, typedCurrency, accountCur, shownRate)
   const valid = amount !== null && !!account && !!category
   const visible = allowedFor(type)
-  const shownRate = entry ? (rateOverride ?? entry.rate_usd_ghs) : rate
 
   // SPEC §6 / rule 4: warn while typing, before saving. New 'out' entries only.
   const amountGhs =
@@ -236,9 +247,17 @@ function EntryForm({
         </div>
       )}
 
-      <label className={styles.amountWrap} data-type={type}>
-        <span className="visually-hidden">{t('entry.amount')}</span>
+      {/* Tapping beside the number focuses it; the currency button is not inside a label (it can't be). */}
+      <div
+        className={styles.amountWrap}
+        data-type={type}
+        onClick={(e) => {
+          if (e.target === e.currentTarget) amountInput.current?.focus()
+        }}
+      >
         <input
+          ref={amountInput}
+          aria-label={t('entry.amount')}
           className={styles.amount}
           value={amountText}
           onChange={(e) => setAmountText(normalizeDigits(e.target.value))}
@@ -253,10 +272,36 @@ function EntryForm({
           // The form mounts after its data loads, so focus here, not from the sheet.
           autoFocus={!entry}
         />
-        <span className={styles.currency}>{account?.currency}</span>
-      </label>
+        {canSwitch ? (
+          <button
+            type="button"
+            className={styles.curBtn}
+            data-converting={converting || undefined}
+            aria-label={t('entry.currencySwitch', { current: typedCurrency, other: otherCurrency(typedCurrency) })}
+            // Keep focus, and the phone keyboard, on the amount.
+            onPointerDown={(e) => e.preventDefault()}
+            onClick={() => setTypedCur(otherCurrency(typedCurrency))}
+          >
+            {typedCurrency}
+            <Icon name="swap" size={14} />
+          </button>
+        ) : (
+          <span className={styles.currency}>{accountCur}</span>
+        )}
+      </div>
       <p className={styles.equiv} aria-live="polite">
-        {amount !== null && account && <Equivalent amount={amount} currency={account.currency} rate={shownRate} />}
+        {amount !== null &&
+          account &&
+          (converting ? (
+            <span className={styles.converted}>
+              {t('entry.converted', {
+                amount: ltr(`${formatMoney(amount)} ${account.currency}`),
+                formula: rateFormula(t('fx.line', { rate: formatRate(shownRate) })),
+              })}
+            </span>
+          ) : (
+            <Equivalent amount={amount} currency={account.currency} rate={shownRate} />
+          ))}
       </p>
 
       {type === 'adjust' ? (

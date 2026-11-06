@@ -7,7 +7,7 @@ Personal expense tracker for Ali, and since 2026-11-03 for up to 19 friends too,
 
 ## Rules that override everything
 1. Adding an expense must stay under 10 seconds, one tap after typing the amount when defaults fit.
-2. Amounts are stored in their own currency. Never convert a stored amount. The FX rate is display only; each entry freezes the rate at creation.
+2. Amounts are stored in their own currency. Never convert a stored amount. The FX rate is display only; each entry freezes the rate at creation. Only exception: Add converts an amount typed in the other currency once, before saving (SPEC §6 Add).
 3. Nothing posts money on its own (salary, recurring, adjustments). Nudge, never act.
 4. Warnings appear live in the Add form, not after.
 5. Undo toasts, not confirm dialogs (except "delete all data").

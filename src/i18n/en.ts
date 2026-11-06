@@ -144,6 +144,8 @@ export const en = {
   'entry.rateNone': 'No rate saved with this entry',
   'entry.updateRate': 'Use current rate {rate}',
   'entry.rateWillUpdate': 'Rate will change to {rate} when you save',
+  'entry.converted': '{amount} at {formula}',
+  'entry.currencySwitch': '{current}, switch to {other}',
 
   'plan.start': 'Start your plan',
   'plan.edit': 'Edit plan',

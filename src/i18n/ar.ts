@@ -147,6 +147,8 @@ export const ar: Record<MsgKey, string> = {
   'entry.rateNone': 'لا يوجد سعر محفوظ مع هذه العملية',
   'entry.updateRate': 'استخدم السعر الحالي {rate}',
   'entry.rateWillUpdate': 'سيتغير السعر إلى {rate} عند الحفظ',
+  'entry.converted': '{amount} بسعر {formula}',
+  'entry.currencySwitch': '{current}، التبديل إلى {other}',
 
   'plan.start': 'ابدأ خطتك',
   'plan.edit': 'تعديل الخطة',

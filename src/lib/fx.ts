@@ -28,6 +28,18 @@ export function convert(amount: number, from: string, usdGhs: number): number {
   return round2(from === 'USD' ? amount * usdGhs : amount / usdGhs)
 }
 
+/**
+ * SPEC §6 Add: the amount to store for an amount typed in `typed` currency. The one place a
+ * rate turns into a stored amount: converted once, before saving, at the rate the entry saves.
+ * Same currency → as typed. No real rate, or a result of 0.00 → null (can't save).
+ */
+export function amountInAccount(amount: number, typed: string, account: string, usdGhs: number): number | null {
+  if (typed === account) return amount
+  if (!isRealRate(usdGhs)) return null
+  const converted = convert(amount, typed, usdGhs)
+  return converted === 0 ? null : converted
+}
+
 /** Phase 1 entries were saved with 1, meaning "no rate yet"; a real USD/GHS rate is never 1. */
 export function isRealRate(rate: number): boolean {
   return rate > 0 && rate !== 1

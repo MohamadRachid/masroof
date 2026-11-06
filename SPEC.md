@@ -10,7 +10,7 @@ This file is the contract. Claude Code builds from it, in the order in §10. Any
 ## 1. Non-negotiable rules
 
 1. **Entry in under 10 seconds.** Any feature that slows down adding an expense is rejected.
-2. **Amounts are stored in their own currency, forever.** The FX rate is for display only. No stored amount is ever converted.
+2. **Amounts are stored in their own currency, forever.** The FX rate is for display only. No stored amount is ever converted. One exception (added 2026-11-06): in Add, an amount typed in the other currency is converted once, before it is saved, into the account's currency at the rate the entry saves (§6 Add). After that it is a stored amount like any other.
 3. **Nothing posts money on its own.** Salary, recurring bills, adjustments: the user taps. The app may nudge, never act.
 4. **Warn before, not after.** Limit warnings appear while typing the amount, not in a report later.
 5. **Undo, not confirm.** Every save shows a 5-second Undo toast. No confirmation dialogs except "delete all data".
@@ -181,6 +181,8 @@ Order top→bottom:
 
 Saving must work with 1 tap after typing the amount when defaults are right.
 
+Typed currency (added 2026-11-06): the currency code next to the amount is a button that switches the typed amount between GHS and USD, for In and Out entries (not adjustments). It starts as the account's currency and follows the account chips until it is tapped; after that it stays put for this entry. When it differs from the account's currency, the amount is converted at the rate the entry saves (today's effective rate; when editing, the entry's saved rate, or the new one after "update rate"), rounded to cents, and saved in the account's currency. The line under the amount shows the converted amount and the rate, and Save shows the amount being saved. Only the converted amount is kept, not the typed one; the entry's equivalent shows the typed amount again. Without a real rate the code is plain text and nothing is converted. An amount that converts to 0.00 can't be saved.
+
 ### History
 Reverse-chronological, grouped by day with a daily "out" total. Search box (note, category, amount). Account filter chips. Tap entry → edit sheet (same form) with Delete.
 
@@ -260,7 +262,7 @@ Phase 6 hardening (2026-10-27):
 - `rate_mode = auto`: a Supabase Edge Function runs daily via cron, fetches USD→GHS from a free API (e.g. `open.er-api.com/v6/latest/USD`), upserts `rates(date, usd_ghs, source)`. Client reads the latest row. If the API fails, the previous day's row stays current and the footer shows the date.
 - `rate_mode = manual`: `settings.manual_rate`, shown as "manual" in the footer, stays until changed.
 - Every new entry stores the effective rate at creation. Editing an entry does not change its stored rate unless the user explicitly taps "update rate" on the edit sheet.
-- No transfer/exchange feature. USD and GHS never move between each other in the app.
+- No transfer/exchange feature. USD and GHS never move between each other in the app. Typing an amount in the other currency (§6 Add) is not an exchange: it is still one entry, in one account, in that account's currency.
 - Phase 1 note (2026-10-26): until FX exists, entries are stored with `rate_usd_ghs = 1`, which means "no rate yet" (a real USD/GHS rate is never 1). Phase 2 runs a one-time repair that replaces 1 with the rate of each entry's date. That repair is not a user edit, so §9's "update rate" rule doesn't apply to it. Phase 2 (2026-10-26): the same repair keeps running, on each device right after a successful sync, for any live entry saved while no rate existed (offline before the first daily rate, or manual mode never set). The footer and Settings call auto mode "daily".
 
 ---
