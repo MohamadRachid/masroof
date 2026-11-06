@@ -7,3 +7,4 @@ Phase 5 — Trust: deployed (2026-10-27) · reconcile + adjustment + drift histo
 Phase 6 — Offline: done (2026-11-03) · no offline change dropped (sync needs a login; only data errors are final), devices converge, one tab syncs at a time · real phone + laptop check passed
 Phase 7 — Friends: done (2026-11-03) · separate accounts behind an invite code in the database (max 20), rest of Settings (categories, export, delete all, payday, warn %, week start) · database lock applied and checked on the real database, first friend signed up
 Typed currency in Add: deployed (2026-11-06) · In/Out amounts can be typed in GHS or USD; the other currency converts once into the account's currency at the entry's rate
+5 more categories: deployed (2026-11-06) · Weekly food allowance (fixed), Football, Padel, Barbershop, Transfer for every account · friends_check passed on the real database
